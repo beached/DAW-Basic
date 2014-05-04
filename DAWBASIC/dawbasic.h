@@ -26,13 +26,12 @@ namespace daw {
 
 
 		class Basic {
-		private:
-			BasicValue& retrieve_variable( ::std::string name );
-			
+		private:			
 			BasicValue evaluate( ::std::string value );
 
 			::std::map<::std::string, BasicFunction> functions;
-			::std::map <::std::string, BasicValue> variables;
+			::std::map <::std::string, BasicValue> variables2;
+			::std::map <::std::string, BasicValue> constants;
 			::std::map<::std::string, ::std::function<bool( ::std::string )>> keywords;
 			ProgramType program;
 			::std::map<::std::string, BasicBinaryOperand> binary_operands;
@@ -41,14 +40,26 @@ namespace daw {
 			RunMode m_run_mode;
 			ProgramType::iterator m_program_it;
 			ProgramType::iterator find_line( integer line_number );
+
+			BasicValue& get_variable( ::std::string name );
+
 			void init( );
 			bool has_syntax_error;
 			bool run( );
 		public:
 			Basic( );
 
+			void add_variable( ::std::string name, BasicValue value );
+			void add_constant( ::std::string name, BasicValue value );
+
+			bool is_constant( ::std::string name );
+			void remove_constant( ::std::string name, bool throw_on_nonexist );
+
 			bool is_variable( ::std::string name );
 			void remove_variable( ::std::string name, bool throw_on_nonexist = true );
+
+			BasicValue get_variable_constant( ::std::string name );
+
 			void add_line( integer line_number, ::std::string line );
 			void remove_line( integer line );
 			bool is_keyword( ::std::string name );

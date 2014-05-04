@@ -175,7 +175,7 @@ namespace daw {
 					ss << to_integer( ::std::move( value ) );
 					break;
 				case ValueType::REAL:
-					ss << to_real( ::std::move( value ) );
+					ss << ::std::setprecision( ::std::numeric_limits<real>::digits10 ) << to_real( ::std::move( value ) );
 					break;
 				case ValueType::STRING:
 					ss << "\"" << boost::any_cast<::std::string>(value.second) << "\"";
@@ -202,7 +202,7 @@ namespace daw {
 				return ::std::move( result );
 			}
 
-			::std::string value_type_string( ValueType value_type ) { 
+			::std::string value_type_string( ValueType value_type ) {
 				switch( value_type ) {
 				case ValueType::BOOLEAN:
 					return "Boolean";
@@ -221,7 +221,7 @@ namespace daw {
 			::std::string value_type_string( BasicValue value ) {
 				return value_type_string( ::std::move( value.first ) );
 			}
-			
+
 			ValueType determine_result_type( ValueType lhs_type, ValueType rhs_type ) {
 				if( ValueType::INTEGER == lhs_type ) {
 					switch( rhs_type ) {
@@ -300,7 +300,7 @@ namespace daw {
 					++start;
 				}
 				int32_t quote_counter = 1;
-				for( int32_t pos = start; pos < static_cast<int32_t>( value.size( ) ); ++pos ) {
+				for( int32_t pos = start; pos < static_cast<int32_t>(value.size( )); ++pos ) {
 					if( '"' == value[pos] ) {
 						if( !(0 != pos && '\\' == value[pos - 1]) ) {
 							--quote_counter;
@@ -310,7 +310,7 @@ namespace daw {
 						return pos;
 					}
 				}
-				throw SyntaxException( "Could not find end of quoted string, not closing quotes" );				
+				throw SyntaxException( "Could not find end of quoted string, not closing quotes" );
 			}
 
 			int32_t find_end_of_bracket( ::std::string value ) {
@@ -327,9 +327,9 @@ namespace daw {
 				}
 				throw SyntaxException( "Unclosed bracket found" );
 			}
-			
+
 			int32_t find_end_of_operand( ::std::string value ) {
-				const static ::std::vector<char> end_chars{ ' ', '	', '^', '*', '/', '+', '-' };
+				const static ::std::vector<char> end_chars{ ' ', '	', '^', '*', '/', '+', '-', '=', '<', '>', '%' };
 				int32_t bracket_count = 0;
 
 				bool has_brackets = false;
@@ -360,7 +360,7 @@ namespace daw {
 						}
 					}
 				}
-				return value.size( )-1;
+				return value.size( ) - 1;
 			}
 
 			::std::string remove_outer_quotes( ::std::string value ) {
@@ -419,16 +419,57 @@ namespace daw {
 			return result;
 		}
 
+		BasicValue Basic::get_variable_constant( ::std::string name ) { 
+			if( is_constant( name ) ) {
+				return  constants[name];
+			} else if( is_variable( name ) ) {
+				return variables2[name];
+			}
+			throw ::std::runtime_error( "Undefined variable or constant" );
+		}
+
+		void Basic::add_variable( ::std::string name, BasicValue value ) {
+			if( is_constant( name ) ) {
+				throw SyntaxException( "Cannot create a variable that is a system constant" );
+			} else if( is_function( name ) | is_keyword( name ) ) {
+				throw SyntaxException( "Cannot create a variable with the same name as a system function/keyword" );
+			}
+			variables2[::std::move( name )] = ::std::move( value );
+		}
+
+		void Basic::add_constant( ::std::string name, BasicValue value ) {
+			if( is_function( name ) | is_keyword( name ) ) {
+				throw SyntaxException( "Cannot create a constant with the same name as a system function/keyword" );
+			}
+			if( is_variable( name ) ) {
+				remove_variable( name );
+			}
+			constants[::std::move( name )] = ::std::move( value );
+		}
+
 		bool Basic::is_variable( ::std::string name ) {
-			return key_exists( variables, ::std::move( name ) );
+			name = boost::algorithm::to_upper_copy( name );
+			return key_exists( variables2, name ) || is_constant( name );
+		}
+
+		bool Basic::is_constant( ::std::string name ) {
+			return key_exists( constants, ::std::move( name ) );
 		}
 
 		void Basic::remove_variable( ::std::string name, bool throw_on_nonexist ) {
-			auto pos = variables.find( boost::algorithm::to_upper_copy( name ) );
-			if( variables.end( ) == pos && throw_on_nonexist ) {
+			auto pos = variables2.find( boost::algorithm::to_upper_copy( name ) );
+			if( variables2.end( ) == pos && throw_on_nonexist ) {
 				throw SyntaxException( "Attempt to delete unknown variable" );
 			}
-			variables.erase( pos );
+			variables2.erase( pos );
+		}
+
+		void Basic::remove_constant( ::std::string name, bool throw_on_nonexist ) {
+			auto pos = constants.find( boost::algorithm::to_upper_copy( name ) );
+			if( constants.end( ) == pos && throw_on_nonexist ) {
+				throw SyntaxException( "Attempt to delete unknown constant" );
+			}
+			constants.erase( pos );
 		}
 
 		ProgramType::iterator Basic::find_line( integer line_number ) {
@@ -463,11 +504,11 @@ namespace daw {
 		}
 
 		bool Basic::is_symbol( ::std::string name ) {
-			return is_keyword( name ) || is_function( name ) || is_variable( name );
+			return is_keyword( name ) || is_function( name ) || is_variable( name ) || is_constant( name );
 		}
 
-		BasicValue& Basic::retrieve_variable( ::std::string name ) {
-			return retrieve_value( variables, ::std::move( name ) );
+		BasicValue& Basic::get_variable( ::std::string name ) {
+			return retrieve_value( variables2, ::std::move( name ) );
 		}
 
 		void Basic::init( ) {
@@ -715,14 +756,6 @@ namespace daw {
 				return basic_value_real( ::std::move( result ) );
 			};
 
-
-			functions["PI"] = []( ::std::vector<BasicValue> value ) {
-				if( !value.empty( ) ) {
-					throw SyntaxException( "PI does not take parameters" );
-				}
-				return basic_value_real( boost::math::constants::pi<real>( ) );
-			};
-
 			functions["NOT"] = []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "NOT requires 1 parameter" );
@@ -734,7 +767,7 @@ namespace daw {
 
 			keywords["DELETE"] = [&]( ::std::string parse_string )-> bool {
 				if( parse_string.empty( ) ) {
-					variables.clear( );
+					variables2.clear( );
 				} else {
 					remove_variable( parse_string );
 				}
@@ -758,7 +791,7 @@ namespace daw {
 					throw SyntaxException( "Attempt to set variable with name of built-in symbol" );
 				}
 				const auto value_type = get_value_type( str_value );
-				auto& var = retrieve_variable( parsed_string[0] );
+				auto& var = get_variable( parsed_string[0] );
 				
 				var = evaluate( str_value );
 
@@ -829,8 +862,14 @@ namespace daw {
 			};
 
 			keywords["VARS"] = [&]( ::std::string ) -> bool {
-				::std::cout << variables.size( ) << " variable(s) in use\n";
-				for( auto it = variables.begin( ); it != variables.end( ); ++it ) {
+				::std::cout << variables2.size( ) + constants.size( ) << " variable(s) in use\n";
+				::std::cout << "Constants:\n";
+				for( auto it = constants.begin( ); it != constants.end( ); ++it ) {
+					const auto value = it->second;
+					::std::cout << it->first << ": " << value_type_string( value.first ) << ": " << to_string( value ) << ::std::endl;
+				}
+				::std::cout << "\nVariables:\n";
+				for( auto it = variables2.begin( ); it != variables2.end( ); ++it ) {
 					const auto value = it->second;
 					::std::cout << it->first << ": " << value_type_string( value.first ) << ": " << to_string( value ) << ::std::endl;
 				}
@@ -877,6 +916,10 @@ namespace daw {
 				}
 				return true;
 			};
+
+			add_constant( "TRUE", basic_value_boolean( true ) );
+			add_constant( "FALSE", basic_value_boolean( false ) );
+			add_constant( "PI", basic_value_real( boost::math::constants::pi<real>( ) ) );
 
 			program.emplace_back( -1, "" );
 		}
@@ -981,9 +1024,9 @@ namespace daw {
 						auto param_string = current_operand.substr( first_bracket + 1, current_operand.size( ) - first_bracket - 2 );
 						auto function_parameters = evaluate_parameters( param_string );
 						operand_stack.push_back( functions[function_name]( function_parameters ) );
-					} else if( variables.end( ) != variables.find( current_operand_upper ) ) {
+					} else if( is_variable( current_operand_upper ) ) {
 						// We are a variable, push value onto stack
-						operand_stack.emplace_back( variables[current_operand_upper] );
+						operand_stack.emplace_back( get_variable_constant( current_operand_upper ) );
 					} else {
 						// We must be a number
 						auto value_type = get_value_type( current_operand );
@@ -1025,7 +1068,7 @@ namespace daw {
 			has_syntax_error = false;
 			for( m_program_it = ::std::begin( program ); m_program_it != ::std::end( program ); ++m_program_it ) {
 				if( 0 <= m_program_it->first ) {
-					variables["CURRENT_LINE"] = basic_value_integer( m_program_it->first );
+					add_constant( "CURRENT_LINE", basic_value_integer( m_program_it->first ) );
 					if( !parse_line( m_program_it->second ) ) {
 						return false;
 					}

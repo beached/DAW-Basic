@@ -19,3 +19,13 @@
 *.exe
 *.out
 *.app
+DAWBASIC/Debug/.*
+DAWBASIC/Debug/*
+DAWBASIC/Release/*
+*.opensdf
+*.sdf
+*.suo
+*/Release
+*.pdb
+*.lastcodeanalysissucceeded
+*.ilk

@@ -9,7 +9,7 @@
 int main( int argc, char* argv[] ) {
 	daw::basic::Basic b;
 	::std::string current_line;
-	::std::cout << "READY" << ::std::endl;
+	::std::cout << "DAW BASIC v0.1\nREADY" << ::std::endl;
 	while( ::std::getline( ::std::cin, current_line ).good( ) ) {
 		if( !b.parse_line( current_line ) ) {
 			break;
