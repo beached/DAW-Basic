@@ -389,7 +389,7 @@ namespace daw {
 		}	// namespace anonymous
 
 		::std::vector<BasicValue> Basic::evaluate_parameters( ::std::string value ) {
-			value = boost::algorithm::trim_copy( value );
+			//value = boost::algorithm::trim_copy( value );
 			// Parameters are separated by comma's.  Comma's should only exist within quotes and between parameters
 			::std::vector<int32_t> comma_pos;
 			::std::vector<BasicValue> result;
@@ -408,10 +408,10 @@ namespace daw {
 					break;
 				}
 			}
-			comma_pos.push_back( end );
+			comma_pos.push_back( value.size( ) );
 			int32_t start = 0;
 			for( auto current_end : comma_pos ) {
-				auto current_param = value.substr( start, current_end + 1 );
+				auto current_param = value.substr( start, current_end - start );
 				auto eval = evaluate( ::std::move( current_param ) );
 				result.push_back( eval );
 				start = current_end + 1;
@@ -565,15 +565,8 @@ namespace daw {
 				}
 			};
 
-			binary_operands["^"] = []( BasicValue lhs, BasicValue rhs ) {
-				auto result_type = determine_result_type( lhs.first, rhs.first );
-				switch( result_type ) {
-				case ValueType::INTEGER:
-				case ValueType::REAL:
-					return basic_value_real( pow( to_numeric( ::std::move( lhs ) ), to_numeric( ::std::move( rhs ) ) ) );
-				default:
-					throw SyntaxException( "Attempt to multiply non-numeric types" );
-				}
+			binary_operands["^"] = [&]( BasicValue lhs, BasicValue rhs ) {				
+				return functions["POW"]( { ::std::move( lhs ), ::std::move( rhs ) } );
 			};
 
 			binary_operands["%"] = []( BasicValue lhs, BasicValue rhs ) {
@@ -748,12 +741,70 @@ namespace daw {
 				return basic_value_real( ::std::move( result ) );
 			};
 
-			functions["POW"] = []( ::std::vector<BasicValue> value ) {
+			functions["TAN"] = []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw SyntaxException( "POW requires 1 parameter" );
+					throw SyntaxException( "TAN requires 1 parameter" );
 				}
-				auto result = pow( to_numeric( value[0] ), to_numeric( value[1] ) );
+				auto dbl_param = to_numeric( value[0] );
+				auto result = tan( dbl_param );
 				return basic_value_real( ::std::move( result ) );
+			};
+
+			functions["SQRT"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "SQRT requires 1 parameter" );
+				}
+				auto dbl_param = to_numeric( value[0] );
+				auto result = sqrt( dbl_param );
+				return basic_value_real( ::std::move( result ) );
+			};
+
+			functions["SQR"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "SQR requires 1 parameter" );
+				}
+				if( ValueType::INTEGER == value[0].first ) {
+					auto int_param = to_integer( value[0] );
+					int_param *= int_param;
+					return basic_value_integer( ::std::move( int_param ) );
+				} else {
+					auto dbl_param = to_numeric( value[0] );
+					dbl_param *= dbl_param;
+					return basic_value_real( ::std::move( dbl_param ) );
+				}
+			};
+
+			functions["ABS"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "SIN requires 1 parameter" );
+				}
+				if( ValueType::INTEGER == value[0].first ) {
+					auto int_param = to_integer( value[0] );
+					if( 0 > int_param ) {
+						int_param = -int_param;
+					}
+					return basic_value_integer( ::std::move( int_param ) );
+				} else {
+					auto dbl_param = to_numeric( value[0] );
+					auto result = abs( dbl_param );
+					return basic_value_real( ::std::move( result ) );
+				}
+			};
+
+
+			functions["POW"] = []( ::std::vector<BasicValue> value ) {
+				if( 2 != value.size( ) ) {
+					throw SyntaxException( "POW requires 2 parameter" );
+				}
+				if( ValueType::INTEGER == determine_result_type( value[0].first, value[1].first ) ) {
+					auto int_param1 = to_integer( value[0] );
+					auto int_param2 = to_integer( value[1] );
+					auto result = static_cast<integer>( pow( ::std::move( int_param1 ), ::std::move( int_param2 ) ) );
+					return basic_value_integer( ::std::move( result ) );
+				} else {
+					auto result = pow( to_numeric( value[0] ), to_numeric( value[1] ) );
+					return basic_value_real( ::std::move( result ) );
+				}
 			};
 
 			functions["NOT"] = []( ::std::vector<BasicValue> value ) {
@@ -977,6 +1028,7 @@ namespace daw {
 						++current_position;
 					}
 				break;
+				case '%':
 				case '^':
 				case '*':
 				case '/':
