@@ -21,23 +21,26 @@ namespace daw {
 		using ::std::placeholders::_1;
 
 		namespace {
+
 			integer operator_rank( ::std::string oper ) {
-				if( "^" == oper ) {
+				if( "NEG" == oper ) {
 					return 1;
-				} else if( "*" == oper || "/" == oper ) {
+				} else if( "^" == oper ) {
 					return 2;
-				} else if( "+" == oper || "-" == oper || "%" == oper ) {
+				} else if( "*" == oper || "/" == oper ) {
 					return 3;
-				} else if( ">>" == oper || "<<" == oper ) {
+				} else if( "+" == oper || "-" == oper || "%" == oper ) {
 					return 4;
-				} else if( ">" == oper || ">=" == oper || "<" == oper || "<=" == oper ) {
+				} else if( ">>" == oper || "<<" == oper ) {
 					return 5;
-				} else if( "==" == oper ) {
+				} else if( ">" == oper || ">=" == oper || "<" == oper || "<=" == oper ) {
 					return 6;
-				} else if( "AND" == oper ) {
+				} else if( "==" == oper ) {
 					return 7;
-				} else if( "OR" == oper ) {
+				} else if( "AND" == oper ) {
 					return 8;
+				} else if( "OR" == oper ) {
+					return 9;
 				}
 				throw ::std::runtime_error( "Unknown operator" );
 			}
@@ -170,6 +173,12 @@ namespace daw {
 
 			BasicValue basic_value_string( ::std::string value ) {
 				return BasicValue{ ValueType::STRING, boost::any( ::std::move( value ) ) };
+			}
+
+			::std::string to_string( integer value ) {
+				::std::stringstream ss;
+				ss << value;
+				return ss.str( );
 			}
 
 			::std::string to_string( BasicValue value ) {
@@ -393,6 +402,14 @@ namespace daw {
 			}
 
 		}	// namespace anonymous
+
+		bool Basic::is_unary_operator( ::std::string oper ) {
+			return key_exists( m_unary_operators, oper );
+		}
+		
+		bool Basic::is_binary_operator( ::std::string oper ) {
+			return key_exists( m_binary_operators, oper );
+		}
 
 		::std::vector<BasicValue> Basic::evaluate_parameters( ::std::string value ) {
 			//value = boost::algorithm::trim_copy( value );
@@ -738,6 +755,15 @@ namespace daw {
 				return basic_value_boolean( to_boolean( lhs ) || to_boolean( rhs ) );
 			};
 
+			m_unary_operators["NEG"] = []( BasicValue lhs ) {
+				if( ValueType::INTEGER == lhs.first ) {
+					return basic_value_integer( -to_integer( lhs ) );
+				} else if( ValueType::REAL == lhs.first ) {
+					return basic_value_real( -to_real( lhs ) );
+				}
+				throw SyntaxException( "Attempt to apply a negative sign to a non-number" );
+			};
+
 
 			m_functions["COS"] = []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
@@ -888,7 +914,7 @@ namespace daw {
 
 			m_functions["POW"] = []( ::std::vector<BasicValue> value ) {
 				if( 2 != value.size( ) ) {
-					throw SyntaxException( "POW requires 2 parameter" );
+					throw SyntaxException( "POW requires 2 parameters" );
 				}
 				if( ValueType::INTEGER == determine_result_type( value[0].first, value[1].first ) ) {
 					auto int_param1 = to_integer( value[0] );
@@ -904,9 +930,7 @@ namespace daw {
 			m_functions["NOT"] = []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "NOT requires 1 parameter" );
-				} else if( ValueType::BOOLEAN != value[0].first ) {
-					throw SyntaxException( "NOT can only take a boolean parameter" );
-				}
+				} 
 				return basic_value_boolean( !to_boolean( value[0] ) );
 			};
 
@@ -962,6 +986,34 @@ namespace daw {
 				m_program_it = line_it;
 				return true;
 			};
+
+			m_keywords["GOSUB"] = [&]( ::std::string parse_string ) -> bool {
+				// Store program line on stack and then call goto
+				if( RunMode::IMMEDIATE == m_run_mode ) {
+					throw SyntaxException( "Attempt to GOSUB from outside a program" );
+				}
+				m_program_stack.push_back( m_program_it );
+				m_keywords["GOTO"]( parse_string );
+			};
+
+			m_keywords["RETURN"] = [&]( ::std::string parse_string ) -> bool {
+				// Pop program line from stack and then run GOTO
+				if( RunMode::IMMEDIATE == m_run_mode ) {
+					throw SyntaxException( "Attempt to RETURN from outside a program" );
+				} else if( m_program_stack.empty( ) ) {
+					throw SyntaxException( "Attempt to RETURN without a preceding GOSUB" );
+				}
+
+				auto line_number = pop( m_program_stack )->first;
+				auto line_it = ::std::begin( m_program ) + ::std::distance( ::std::begin( m_program ), find_line( line_number ) );
+				if( ::std::end( m_program ) == line_it ) {
+					throw SyntaxException( "Attempt to GOTO a non-existent line" );
+				}
+				m_program_it = line_it;
+				return true;
+
+			};
+			
 
 			m_keywords["PRINT"] = [&]( ::std::string parse_string ) mutable -> bool {
 				boost::algorithm::trim( parse_string );
@@ -1097,10 +1149,38 @@ namespace daw {
 				return operator_rank( oper ) < operator_rank( from_stack );
 			};
 
-			const int32_t end = value.size( ) - 1;
+			const auto is_logical_and = []( const ::std::string& value, int32_t pos, int32_t end ) -> bool {
+				const ::std::string check_text{ "AND" };				
+				if( pos + static_cast<int32_t>( check_text.size( ) ) <= end ) {
+					auto txt_window = boost::algorithm::to_upper_copy( value.substr( pos, check_text.size( ) ) );
+					if( check_text == txt_window ) {
+						auto ws_check = value[pos + check_text.size( )];
+						return ' ' == ws_check || '	' == ws_check;
+					}
+				}
+				return false;
+			};
 
+			const auto is_logical_or = []( const ::std::string& value, int32_t pos, int32_t end ) -> bool {
+				const ::std::string check_text{ "OR" };
+				if( pos + static_cast<int32_t>(check_text.size( )) <= end ) {
+					auto txt_window = boost::algorithm::to_upper_copy( value.substr( pos, check_text.size( ) ) );
+					if( check_text == txt_window ) {
+						auto ws_check = value[pos + check_text.size( )];
+						return ' ' == ws_check || '	' == ws_check;
+					}
+				}
+				return false;
+			};
+
+			const int32_t end = value.size( ) - 1;
 			while( current_position <= end ) {
-				const auto& current_char = boost::algorithm::to_upper_copy( value )[current_position];
+				auto current_char = value[current_position];
+				if( 'a' == current_char ) {
+					current_char = 'A';
+				} else if( 'o' == current_char ) {
+					current_char = 'O';
+				}
 				switch( current_char ) {
 				case '"':{ // String boundary
 					auto current_operand = value.substr( current_position );
@@ -1114,7 +1194,6 @@ namespace daw {
 					break;
 				case '(':	// Bracket boundary				
 				{
-
 					auto text_in_bracket = value.substr( current_position + 1 );
 					auto end_of_bracket = find_end_of_bracket( text_in_bracket );
 					text_in_bracket = text_in_bracket.substr( 0, end_of_bracket );
@@ -1130,13 +1209,23 @@ namespace daw {
 					}
 					break;
 				case 'A':
-					if( !(current_position < end - 2 && "AND" == boost::algorithm::to_upper_copy( value.substr( current_position, 3 ) ) && (' ' == value[current_position + 4] || '	' == value[current_position + 4])) ) {
-						break;
+					if( is_logical_and( value, current_position, end ) ) {
+						goto explicit_operator;
+					} else {
+						goto explicit_default;
 					}
+// 					if( !(current_position < end - 2 && "AND" == boost::algorithm::to_upper_copy( value.substr( current_position, 3 ) ) && (' ' == value[current_position + 4] || '	' == value[current_position + 4])) ) {
+// 						break;
+// 					}
 				case 'O':
-					if( !(current_position < end - 1 && "OR" == boost::algorithm::to_upper_copy( value.substr( current_position, 2 ) ) && (' ' == value[current_position + 2] || '	' == value[current_position + 2]) ) ) {
-						break;
+					if( is_logical_or( value, current_position, end ) ) {
+						goto explicit_operator;
+					} else {
+						goto explicit_default;
 					}
+					// 					if( !(current_position < end - 1 && "OR" == boost::algorithm::to_upper_copy( value.substr( current_position, 2 ) ) && (' ' == value[current_position + 2] || '	' == value[current_position + 2]) ) ) {
+// 						break;
+// 					}
 				case '%':
 				case '^':
 				case '*':
@@ -1146,7 +1235,17 @@ namespace daw {
 				case '<':
 				case '>':
 				case '=': {
+					explicit_operator:
 					::std::string current_operator = char_to_string( current_char );
+					// Negation of numbers					
+					if( '-' == current_char ) {
+						// Check for unary negation.
+						if( operator_stack.empty( ) && operand_stack.empty( ) ) {
+							current_operator = "NEG";
+						} else if( !operator_stack.empty( ) && 1 == operand_stack.size( ) % 2 == 1 ) {
+							current_operator = "NEG";
+						}
+					}					
 					if( '>' == current_char || '<' == current_char || '=' == current_char ) {
 						if( current_position >= end ) {
 							throw SyntaxException( "Binary operator with only left hand side, not right" );
@@ -1161,17 +1260,26 @@ namespace daw {
 						current_operator = "OR";
 						current_position += 1;
 					}
-					if( !is_higher_precedence( current_operator ) ) {
+					// Used to be an if, changed to a while
+					while( !is_higher_precedence( current_operator ) ) {
 						// Pop from operand stack and do operators and push value back to stack
-						auto rhs = pop( operand_stack );
-						auto prev_operator = pop( operator_stack );
-						auto result = m_binary_operators[prev_operator]( pop( operand_stack ), rhs );
+						BasicValue rhs( pop( operand_stack ) );
+						auto prev_operator( pop( operator_stack ) );
+						BasicValue result( EMPTY_BASIC_VALUE );
+						if( is_unary_operator( prev_operator ) ) {
+							result = m_unary_operators[prev_operator]( ::std::move( rhs ) );
+						} else if( is_binary_operator( prev_operator ) ) {
+							result = m_binary_operators[prev_operator]( pop( operand_stack ), ::std::move( rhs ) );
+						} else {
+							throw SyntaxException( "Unknown operator " + prev_operator );	// Probably should never happen...but you know
+						}
 						operand_stack.push_back( result );
 					}
 					operator_stack.push_back( current_operator );
 				}
-					break;
+				break;
 				default: {
+					explicit_default:
 					auto current_operand = value.substr( current_position );
 					auto end_of_operand = find_end_of_operand( current_operand );
 					current_operand = current_operand.substr( 0, end_of_operand + 1 );
@@ -1218,7 +1326,14 @@ namespace daw {
 			while( !operator_stack.empty( ) ) {
 				auto current_operator = pop( operator_stack );
 				auto rhs = pop( operand_stack );
-				auto result = m_binary_operators[current_operator]( pop( operand_stack ), ::std::move( rhs ) );
+				BasicValue result = EMPTY_BASIC_VALUE;
+				if( is_unary_operator( current_operator ) ) {
+					result = m_unary_operators[current_operator]( ::std::move( rhs ) );
+				} else if( is_binary_operator( current_operator ) ) {
+					result = m_binary_operators[current_operator]( pop( operand_stack ), ::std::move( rhs ) );
+				} else {
+					throw SyntaxException( "Unknown operator " + current_operator );	// Probably should never happen...but you know
+				}
 				operand_stack.push_back( result );
 			}
 			if( operand_stack.empty( ) ) {
@@ -1226,7 +1341,7 @@ namespace daw {
 			}
 			auto current_operand = pop( operand_stack );
 			if( !operand_stack.empty( ) ) {
-				throw SyntaxException( "Error parsing line" );
+				throw SyntaxException( "Unknown error while parsing line.  Not value left at end of evaluation" );
 			}
 			return current_operand;
 		}

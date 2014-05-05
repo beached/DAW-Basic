@@ -21,6 +21,7 @@ namespace daw {
 		typedef ::std::function<bool( ::std::string )> BasicKeyword;
 		typedef ::std::function<BasicValue( ::std::vector<BasicValue> )> BasicFunction;
 		typedef ::std::function < BasicValue( BasicValue, BasicValue )> BasicBinaryOperand;
+		typedef ::std::function < BasicValue( BasicValue )> BasicUnaryOperand;
 		typedef ::std::pair<integer, ::std::string> ProgramLine;
 		typedef ::std::vector<ProgramLine> ProgramType;
 
@@ -35,14 +36,17 @@ namespace daw {
 			::std::map<::std::string, ::std::function<bool( ::std::string )>> m_keywords;
 			ProgramType m_program;
 			::std::map<::std::string, BasicBinaryOperand> m_binary_operators;
+			::std::map<::std::string, BasicUnaryOperand> m_unary_operators;
 			::std::vector<BasicValue> evaluate_parameters( ::std::string value );
 			enum class RunMode { IMMEDIATE, PROGRAM };
 			RunMode m_run_mode;
 			ProgramType::iterator m_program_it;
+			::std::vector<ProgramType::iterator> m_program_stack;	// GOSUB/RETURN
 			ProgramType::iterator find_line( integer line_number );
 
 			BasicValue& get_variable( ::std::string name );
-
+			bool is_unary_operator( ::std::string oper );
+			bool is_binary_operator( ::std::string oper );
 			void init( );
 			bool m_has_syntax_error;
 			bool m_exiting;
