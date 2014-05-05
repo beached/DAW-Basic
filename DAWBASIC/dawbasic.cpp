@@ -423,7 +423,7 @@ namespace daw {
 			if( is_constant( name ) ) {
 				return  constants[name];
 			} else if( is_variable( name ) ) {
-				return variables2[name];
+				return variables[name];
 			}
 			throw ::std::runtime_error( "Undefined variable or constant" );
 		}
@@ -434,7 +434,7 @@ namespace daw {
 			} else if( is_function( name ) | is_keyword( name ) ) {
 				throw SyntaxException( "Cannot create a variable with the same name as a system function/keyword" );
 			}
-			variables2[::std::move( name )] = ::std::move( value );
+			variables[::std::move( name )] = ::std::move( value );
 		}
 
 		void Basic::add_constant( ::std::string name, BasicValue value ) {
@@ -449,7 +449,7 @@ namespace daw {
 
 		bool Basic::is_variable( ::std::string name ) {
 			name = boost::algorithm::to_upper_copy( name );
-			return key_exists( variables2, name ) || is_constant( name );
+			return key_exists( variables, name ) || is_constant( name );
 		}
 
 		bool Basic::is_constant( ::std::string name ) {
@@ -457,11 +457,11 @@ namespace daw {
 		}
 
 		void Basic::remove_variable( ::std::string name, bool throw_on_nonexist ) {
-			auto pos = variables2.find( boost::algorithm::to_upper_copy( name ) );
-			if( variables2.end( ) == pos && throw_on_nonexist ) {
+			auto pos = variables.find( boost::algorithm::to_upper_copy( name ) );
+			if( variables.end( ) == pos && throw_on_nonexist ) {
 				throw SyntaxException( "Attempt to delete unknown variable" );
 			}
-			variables2.erase( pos );
+			variables.erase( pos );
 		}
 
 		void Basic::remove_constant( ::std::string name, bool throw_on_nonexist ) {
@@ -508,11 +508,11 @@ namespace daw {
 		}
 
 		BasicValue& Basic::get_variable( ::std::string name ) {
-			return retrieve_value( variables2, ::std::move( name ) );
+			return retrieve_value( variables, ::std::move( name ) );
 		}
 
 		void Basic::init( ) {
-			binary_operands["*"] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["*"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				switch( result_type ) {
 				case ValueType::INTEGER:
@@ -524,7 +524,7 @@ namespace daw {
 				}
 			};
 
-			binary_operands["/"] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["/"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				switch( result_type ) {
 				case ValueType::INTEGER:
@@ -536,7 +536,7 @@ namespace daw {
 				}
 			};
 
-			binary_operands["+"] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["+"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				switch( result_type ) {
 				case ValueType::INTEGER:
@@ -553,7 +553,7 @@ namespace daw {
 				}
 			};
 
-			binary_operands["-"] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["-"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				switch( result_type ) {
 				case ValueType::INTEGER:
@@ -565,11 +565,11 @@ namespace daw {
 				}
 			};
 
-			binary_operands["^"] = [&]( BasicValue lhs, BasicValue rhs ) {				
+			binary_operators["^"] = [&]( BasicValue lhs, BasicValue rhs ) {				
 				return functions["POW"]( { ::std::move( lhs ), ::std::move( rhs ) } );
 			};
 
-			binary_operands["%"] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["%"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				switch( result_type ) {
 				case ValueType::INTEGER:
@@ -579,7 +579,7 @@ namespace daw {
 				}
 			};
 
-			binary_operands["=="] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["=="] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				boolean result = false;
 				switch( result_type ) {
@@ -608,7 +608,7 @@ namespace daw {
 				return basic_value_boolean( result );
 			};
 
-			binary_operands["<"] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["<"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				boolean result = false;
 				switch( result_type ) {
@@ -637,7 +637,7 @@ namespace daw {
 				return basic_value_boolean( result );			
 			};
 
-			binary_operands["<="] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators["<="] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				boolean result = false;
 				switch( result_type ) {
@@ -666,7 +666,7 @@ namespace daw {
 				return basic_value_boolean( result );			
 			};
 
-			binary_operands[">"] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators[">"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				boolean result = false;
 				switch( result_type ) {
@@ -695,7 +695,7 @@ namespace daw {
 				return basic_value_boolean( result );
 			};
 
-			binary_operands[">="] = []( BasicValue lhs, BasicValue rhs ) {
+			binary_operators[">="] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				boolean result = false;
 				switch( result_type ) {
@@ -791,6 +791,14 @@ namespace daw {
 				}
 			};
 
+			functions["NEG"] = [&]( ::std::vector<BasicValue> values ) {
+				if( 1 != values.size( ) ) {
+					throw SyntaxException( "NEG requires 1 parameter" );
+				}
+				const BasicValue zero = basic_value_integer( 0 );
+				return binary_operators["-"]( zero, values[0] );
+			};
+
 
 			functions["POW"] = []( ::std::vector<BasicValue> value ) {
 				if( 2 != value.size( ) ) {
@@ -818,7 +826,7 @@ namespace daw {
 
 			keywords["DELETE"] = [&]( ::std::string parse_string )-> bool {
 				if( parse_string.empty( ) ) {
-					variables2.clear( );
+					variables.clear( );
 				} else {
 					remove_variable( parse_string );
 				}
@@ -884,6 +892,10 @@ namespace daw {
 				return false;
 			};
 
+			keywords["EXIT"] = []( ::std::string ) -> bool {
+				return false;
+			};
+
 			keywords["REM"] = []( ::std::string ) -> bool {
 				// truly do nothing
 				return true;
@@ -913,14 +925,14 @@ namespace daw {
 			};
 
 			keywords["VARS"] = [&]( ::std::string ) -> bool {
-				::std::cout << variables2.size( ) + constants.size( ) << " variable(s) in use\n";
+				::std::cout << variables.size( ) + constants.size( ) << " variable(s) in use\n";
 				::std::cout << "Constants:\n";
 				for( auto it = constants.begin( ); it != constants.end( ); ++it ) {
 					const auto value = it->second;
 					::std::cout << it->first << ": " << value_type_string( value.first ) << ": " << to_string( value ) << ::std::endl;
 				}
 				::std::cout << "\nVariables:\n";
-				for( auto it = variables2.begin( ); it != variables2.end( ); ++it ) {
+				for( auto it = variables.begin( ); it != variables.end( ); ++it ) {
 					const auto value = it->second;
 					::std::cout << it->first << ": " << value_type_string( value.first ) << ": " << to_string( value ) << ::std::endl;
 				}
@@ -1050,7 +1062,7 @@ namespace daw {
 						// Pop from operand stack and do operators and push value back to stack
 						auto rhs = pop( operand_stack );
 						auto prev_operator = pop( operator_stack );
-						auto result = binary_operands[prev_operator]( pop( operand_stack ), rhs );
+						auto result = binary_operators[prev_operator]( pop( operand_stack ), rhs );
 						operand_stack.push_back( result );
 					}
 					operator_stack.push_back( current_operator );
@@ -1103,7 +1115,7 @@ namespace daw {
 			while( !operator_stack.empty( ) ) {
 				auto current_operator = pop( operator_stack );
 				auto rhs = pop( operand_stack );
-				auto result = binary_operands[current_operator]( pop( operand_stack ), ::std::move( rhs ) );
+				auto result = binary_operators[current_operator]( pop( operand_stack ), ::std::move( rhs ) );
 				operand_stack.push_back( result );
 			}
 			if( operand_stack.empty( ) ) {

@@ -30,11 +30,11 @@ namespace daw {
 			BasicValue evaluate( ::std::string value );
 
 			::std::map<::std::string, BasicFunction> functions;
-			::std::map <::std::string, BasicValue> variables2;
+			::std::map <::std::string, BasicValue> variables;
 			::std::map <::std::string, BasicValue> constants;
 			::std::map<::std::string, ::std::function<bool( ::std::string )>> keywords;
 			ProgramType program;
-			::std::map<::std::string, BasicBinaryOperand> binary_operands;
+			::std::map<::std::string, BasicBinaryOperand> binary_operators;
 			::std::vector<BasicValue> evaluate_parameters( ::std::string value );
 			enum class RunMode { IMMEDIATE, PROGRAM };
 			RunMode m_run_mode;
