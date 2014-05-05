@@ -24,16 +24,22 @@ namespace daw {
 			integer operator_rank( ::std::string oper ) {
 				if( "^" == oper ) {
 					return 1;
-				} else if( "*" == oper || "\\" == oper ) {
+				} else if( "*" == oper || "/" == oper ) {
 					return 2;
 				} else if( "+" == oper || "-" == oper || "%" == oper ) {
 					return 3;
-				} else if( ">" == oper || ">=" == oper || "<" == oper || "<=" == oper ) {
+				} else if( ">>" == oper || "<<" == oper ) {
 					return 4;
-				} else if( "==" == oper ) {
+				} else if( ">" == oper || ">=" == oper || "<" == oper || "<=" == oper ) {
 					return 5;
+				} else if( "==" == oper ) {
+					return 6;
+				} else if( "AND" == oper ) {
+					return 7;
+				} else if( "OR" == oper ) {
+					return 8;
 				}
-				throw ::std::runtime_error( "Uknown operator" );
+				throw ::std::runtime_error( "Unknown operator" );
 			}
 
 			const BasicValue EMPTY_BASIC_VALUE{ ValueType::EMPTY, boost::any( ) };
@@ -419,7 +425,7 @@ namespace daw {
 			return result;
 		}
 
-		BasicValue Basic::get_variable_constant( ::std::string name ) { 
+		BasicValue Basic::get_variable_constant( ::std::string name ) {
 			if( is_constant( name ) ) {
 				return  m_constants[name];
 			} else if( is_variable( name ) ) {
@@ -565,7 +571,7 @@ namespace daw {
 				}
 			};
 
-			m_binary_operators["^"] = [&]( BasicValue lhs, BasicValue rhs ) {				
+			m_binary_operators["^"] = [&]( BasicValue lhs, BasicValue rhs ) {
 				return m_functions["POW"]( { ::std::move( lhs ), ::std::move( rhs ) } );
 			};
 
@@ -634,7 +640,7 @@ namespace daw {
 				default:
 					throw ::std::runtime_error( "Unknown ValueType" );
 				}
-				return basic_value_boolean( result );			
+				return basic_value_boolean( result );
 			};
 
 			m_binary_operators["<="] = []( BasicValue lhs, BasicValue rhs ) {
@@ -663,7 +669,7 @@ namespace daw {
 				default:
 					throw ::std::runtime_error( "Unknown ValueType" );
 				}
-				return basic_value_boolean( result );			
+				return basic_value_boolean( result );
 			};
 
 			m_binary_operators[">"] = []( BasicValue lhs, BasicValue rhs ) {
@@ -724,6 +730,14 @@ namespace daw {
 				return basic_value_boolean( result );
 			};
 
+			m_binary_operators["AND"] = []( BasicValue lhs, BasicValue rhs ) {
+				return basic_value_boolean( to_boolean( lhs ) && to_boolean( rhs ) );
+			};
+
+			m_binary_operators["OR"] = []( BasicValue lhs, BasicValue rhs ) {
+				return basic_value_boolean( to_boolean( lhs ) || to_boolean( rhs ) );
+			};
+
 
 			m_functions["COS"] = []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
@@ -750,7 +764,34 @@ namespace daw {
 				return basic_value_real( ::std::move( result ) );
 			};
 
-			m_functions["SQRT"] = []( ::std::vector<BasicValue> value ) {
+			m_functions["ATN"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "ATN requires 1 parameter" );
+				}
+				auto dbl_param = to_numeric( value[0] );
+				auto result = atan( dbl_param );
+				return basic_value_real( ::std::move( result ) );
+			};
+
+			m_functions["EXP"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "EXP requires 1 parameter" );
+				}
+				auto dbl_param = to_numeric( value[0] );
+				auto result = exp( dbl_param );
+				return basic_value_real( ::std::move( result ) );
+			};
+
+			m_functions["LOG"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "LOG requires 1 parameter" );
+				}
+				auto dbl_param = to_numeric( value[0] );
+				auto result = log( dbl_param );
+				return basic_value_real( ::std::move( result ) );
+			};
+
+			m_functions["SQR"] = []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "SQRT requires 1 parameter" );
 				}
@@ -759,7 +800,7 @@ namespace daw {
 				return basic_value_real( ::std::move( result ) );
 			};
 
-			m_functions["SQR"] = []( ::std::vector<BasicValue> value ) {
+			m_functions["SQUARE"] = []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "SQR requires 1 parameter" );
 				}
@@ -791,6 +832,51 @@ namespace daw {
 				}
 			};
 
+			m_functions["SGN"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "SGN requires 1 parameter" );
+				}
+				auto result = to_numeric( value[0] );
+				if( 0 < result ) {
+					result = 1;
+				} else if( 0 > result ) {
+					result = -1;
+				} else {
+					result = 0;
+				}
+				if( ValueType::INTEGER == value[0].first ) {
+					return basic_value_integer( static_cast<integer>(result) );
+				}
+				return basic_value_real( result );
+			};
+
+			m_functions["INT"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "INT requires 1 parameter" );
+				}
+				if( ValueType::INTEGER == value[0].first ) {
+					return value[0];
+				}
+
+				auto result = to_real( value[0] );
+				result = round( result - 0.5 );
+				return basic_value_integer( static_cast<integer>(result) );
+			};
+
+			m_functions["RND"] = []( ::std::vector<BasicValue> value ) {
+				if( 1 >= value.size( ) ) {
+					throw SyntaxException( "INT requires 1 or 0 parameters" );
+				}
+				if( ValueType::INTEGER == value[0].first ) {
+					return value[0];
+				}
+
+				auto result = to_real( value[0] );
+				result = round( result - 0.5 );
+				return basic_value_integer( static_cast<integer>(result) );
+			};
+
+
 			m_functions["NEG"] = [&]( ::std::vector<BasicValue> values ) {
 				if( 1 != values.size( ) ) {
 					throw SyntaxException( "NEG requires 1 parameter" );
@@ -807,7 +893,7 @@ namespace daw {
 				if( ValueType::INTEGER == determine_result_type( value[0].first, value[1].first ) ) {
 					auto int_param1 = to_integer( value[0] );
 					auto int_param2 = to_integer( value[1] );
-					auto result = static_cast<integer>( pow( ::std::move( int_param1 ), ::std::move( int_param2 ) ) );
+					auto result = static_cast<integer>(pow( ::std::move( int_param1 ), ::std::move( int_param2 ) ));
 					return basic_value_integer( ::std::move( result ) );
 				} else {
 					auto result = pow( to_numeric( value[0] ), to_numeric( value[1] ) );
@@ -823,6 +909,7 @@ namespace daw {
 				}
 				return basic_value_boolean( !to_boolean( value[0] ) );
 			};
+
 
 			m_keywords["DELETE"] = [&]( ::std::string parse_string )-> bool {
 				if( parse_string.empty( ) ) {
@@ -843,7 +930,7 @@ namespace daw {
 				::std::string str_value;
 				if( 2 == parsed_string.size( ) ) {
 					str_value = parsed_string[1];
-				} else { 
+				} else {
 					throw SyntaxException( "LET requires a variable and an assignment" );
 				}
 				if( is_function( parsed_string[0] ) || is_keyword( parsed_string[0] ) ) {
@@ -851,7 +938,7 @@ namespace daw {
 				}
 				const auto value_type = get_value_type( str_value );
 				auto& var = get_variable( parsed_string[0] );
-				
+
 				var = evaluate( str_value );
 
 				return true;
@@ -875,13 +962,13 @@ namespace daw {
 				m_program_it = line_it;
 				return true;
 			};
-			
+
 			m_keywords["PRINT"] = [&]( ::std::string parse_string ) mutable -> bool {
 				boost::algorithm::trim( parse_string );
 				if( parse_string.empty( ) ) {
 					::std::cout << ::std::endl;
 					return true;
-				}				
+				}
 				::std::string evaluated_value = to_string( evaluate( parse_string ) );
 				::std::cout << ::std::move( evaluated_value ) << ::std::endl;
 				return true;
@@ -988,7 +1075,7 @@ namespace daw {
 
 			m_program.emplace_back( -1, "" );
 		}
-		
+
 		//////////////////////////////////////////////////////////////////////////
 		/// summary: Evaluate a string and solve all functions/variables
 		BasicValue Basic::evaluate( ::std::string value ) {
@@ -1013,7 +1100,7 @@ namespace daw {
 			const int32_t end = value.size( ) - 1;
 
 			while( current_position <= end ) {
-				const auto& current_char = value[current_position];
+				const auto& current_char = boost::algorithm::to_upper_copy( value )[current_position];
 				switch( current_char ) {
 				case '"':{ // String boundary
 					auto current_operand = value.substr( current_position );
@@ -1024,7 +1111,7 @@ namespace daw {
 					operand_stack.push_back( basic_value_string( ::std::move( current_operand ) ) );
 					current_position += end_of_string;
 				}
-				break;
+					break;
 				case '(':	// Bracket boundary				
 				{
 
@@ -1035,20 +1122,28 @@ namespace daw {
 					operand_stack.push_back( evaluated_bracket );
 					current_position += end_of_bracket + 1;
 				}
-				break;
+					break;
 				case ' ':
 				case '	':
 					while( ' ' == value[current_position + 1] || '	' == value[current_position + 1] ) {
 						++current_position;
 					}
-				break;
+					break;
+				case 'A':
+					if( !(current_position < end - 2 && "AND" == boost::algorithm::to_upper_copy( value.substr( current_position, 3 ) ) && (' ' == value[current_position + 4] || '	' == value[current_position + 4])) ) {
+						break;
+					}
+				case 'O':
+					if( !(current_position < end - 1 && "OR" == boost::algorithm::to_upper_copy( value.substr( current_position, 2 ) ) && (' ' == value[current_position + 2] || '	' == value[current_position + 2]) ) ) {
+						break;
+					}
 				case '%':
 				case '^':
 				case '*':
 				case '/':
 				case '+':
 				case '-':
-				case '<': 
+				case '<':
 				case '>':
 				case '=': {
 					::std::string current_operator = char_to_string( current_char );
@@ -1057,8 +1152,14 @@ namespace daw {
 							throw SyntaxException( "Binary operator with only left hand side, not right" );
 						}
 						if( '=' == value[current_position + 1] ) {
-							current_operator += value[++current_position];							
+							current_operator += value[++current_position];
 						}
+					} else if( 'A' == current_char ) {
+						current_operator = "AND";
+						current_position += 2;
+					} else if( 'O' == current_char ) {
+						current_operator = "OR";
+						current_position += 1;
 					}
 					if( !is_higher_precedence( current_operator ) ) {
 						// Pop from operand stack and do operators and push value back to stack
@@ -1069,7 +1170,7 @@ namespace daw {
 					}
 					operator_stack.push_back( current_operator );
 				}
-				break;
+					break;
 				default: {
 					auto current_operand = value.substr( current_position );
 					auto end_of_operand = find_end_of_operand( current_operand );
@@ -1109,7 +1210,7 @@ namespace daw {
 					}
 					current_position += end_of_operand;
 				}
-				break;
+					break;
 				}	// switch				
 				++current_position;
 			}	// while
@@ -1186,7 +1287,7 @@ namespace daw {
 						return m_run_mode != RunMode::IMMEDIATE;
 					}
 
-					if( result && RunMode::IMMEDIATE == m_run_mode) {
+					if( result && RunMode::IMMEDIATE == m_run_mode ) {
 						::std::cout << "\nREADY" << ::std::endl;
 					}
 					return result;
