@@ -29,12 +29,12 @@ namespace daw {
 		private:			
 			BasicValue evaluate( ::std::string value );
 
-			::std::map<::std::string, BasicFunction> functions;
-			::std::map <::std::string, BasicValue> variables;
-			::std::map <::std::string, BasicValue> constants;
-			::std::map<::std::string, ::std::function<bool( ::std::string )>> keywords;
-			ProgramType program;
-			::std::map<::std::string, BasicBinaryOperand> binary_operators;
+			::std::map<::std::string, BasicFunction> m_functions;
+			::std::map <::std::string, BasicValue> m_variables;
+			::std::map <::std::string, BasicValue> m_constants;
+			::std::map<::std::string, ::std::function<bool( ::std::string )>> m_keywords;
+			ProgramType m_program;
+			::std::map<::std::string, BasicBinaryOperand> m_binary_operators;
 			::std::vector<BasicValue> evaluate_parameters( ::std::string value );
 			enum class RunMode { IMMEDIATE, PROGRAM };
 			RunMode m_run_mode;
@@ -44,7 +44,8 @@ namespace daw {
 			BasicValue& get_variable( ::std::string name );
 
 			void init( );
-			bool has_syntax_error;
+			bool m_has_syntax_error;
+			bool m_exiting;
 			bool run( );
 		public:
 			Basic( );
