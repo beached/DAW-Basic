@@ -179,6 +179,11 @@ namespace daw {
 				return BasicValue{ ValueType::STRING, boost::any( ::std::move( value ) ) };
 			}
 
+			BasicValue basic_value_string_array( ::std::vector<::std::string> values ) {
+				throw SyntaxException( "Not implemented" );
+				//return BasicValue{ ValueType::STRINGARRAY, boost::any( ::std::move( values ) ) };
+			}
+
 			::std::string to_string( integer value ) {
 				::std::stringstream ss;
 				ss << value;
@@ -225,14 +230,22 @@ namespace daw {
 				switch( value_type ) {
 				case ValueType::BOOLEAN:
 					return "Boolean";
+				case ValueType::BOOLEANARRAY:
+					return "Boolean Array";
 				case ValueType::EMPTY:
 					return "Empty";
 				case ValueType::INTEGER:
 					return "Integer";
+				case ValueType::INTEGERARRAY:
+					return "Integer Array";
 				case ValueType::REAL:
 					return "Real";
+				case ValueType::REALARRAY:
+					return "Real Array";
 				case ValueType::STRING:
 					return "String";
+				case ValueType::STRINGARRAY:
+					return "String Array";
 				}
 				throw ::std::runtime_error( "Unknown ValueType" );
 			}
@@ -579,7 +592,7 @@ namespace daw {
 			::std::stringstream ss;
 			for( auto& current_constant_name : get_keys( m_constants ) ) {
 				const auto& current_constant = m_constants[current_constant_name];
-				ss << current_constant_name << " = " << to_string( current_constant.value ) << ": " << current_constant.description << "\n";
+				ss << current_constant_name << ": " << value_type_string( current_constant.value ) << " = " << to_string( current_constant.value ) << ": " << current_constant.description << "\n";
 			}
 			return ss.str( );
 		}
@@ -597,7 +610,7 @@ namespace daw {
 			::std::stringstream ss;
 			for( auto& current_variable_name : get_keys( m_variables ) ) {
 				const auto& current_variable = m_variables[current_variable_name];
-				ss << current_variable_name << " = " << to_string( current_variable ) << "\n";
+				ss << current_variable_name << ": " << value_type_string( current_variable ) << " = " << to_string( current_variable ) << "\n";
 			}
 			return ss.str( );
 		}
@@ -1135,6 +1148,18 @@ namespace daw {
 				return basic_value_string( char_to_string( static_cast<char>(ascii_code) ) );
 			} );
 
+			add_function( "SPLIT$", "SPLIT$( string, delimiter ) -> Returns an array of strings from the original string delimited by delimiter", []( ::std::vector<BasicValue> value ) {
+				if( 2 != value.size( ) ) {
+					throw SyntaxException( "SPLIT$ requires 2 parameters" );
+				} else if( ValueType::STRING != get_value_type( value[0] ) || ValueType::STRING != get_value_type( value[1] ) ) {
+					throw SyntaxException( "SPLIT$ requires string parameters" );
+				}
+				auto str_string = to_string( value[0] );
+				auto str_delim = to_string( value[1] );
+				auto result = split( ::std::move( str_string ), ::std::move( str_delim ) );
+				return basic_value_string_array( ::std::move( result ) );
+			} );
+
 			//////////////////////////////////////////////////////////////////////////
 			// Keywords
 			//////////////////////////////////////////////////////////////////////////
@@ -1429,18 +1454,12 @@ namespace daw {
 					} else {
 						goto explicit_default;
 					}
-// 					if( !(current_position < end - 2 && "AND" == boost::algorithm::to_upper_copy( value.substr( current_position, 3 ) ) && (' ' == value[current_position + 4] || '	' == value[current_position + 4])) ) {
-// 						break;
-// 					}
 				case 'O':
 					if( is_logical_or( value, current_position, end ) ) {
 						goto explicit_operator;
 					} else {
 						goto explicit_default;
 					}
-					// 					if( !(current_position < end - 1 && "OR" == boost::algorithm::to_upper_copy( value.substr( current_position, 2 ) ) && (' ' == value[current_position + 2] || '	' == value[current_position + 2]) ) ) {
-// 						break;
-// 					}
 				case '%':
 				case '^':
 				case '*':
@@ -1617,25 +1636,22 @@ namespace daw {
 		}
 
 		Basic::Basic( ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( ::std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {
-			
+			init( );
 		}
 
-		namespace {
-			template<typename valueType>
-			std::vector<valueType> split( valueType text, valueType delimiter ) {
-				std::vector<valueType> tokens;
-				size_t pos = 0;
-				valueType token;
+		::std::vector<::std::string> Basic::split( ::std::string text, ::std::string delimiter ) {
+			std::vector<::std::string> tokens;
+			size_t pos = 0;
+			::std::string token;
 
-				while( (pos = text.find( delimiter )) != valueType::npos ) {
-					token = text.substr( 0, pos );
-					tokens.push_back( token );
-					text.erase( 0, pos + delimiter.length( ) );
-				}
-				tokens.push_back( text );
-
-				return tokens;
+			while( ::std::string::npos != ( pos = text.find( delimiter ) ) ) {
+				token = text.substr( 0, pos );
+				tokens.push_back( token );
+				text.erase( 0, pos + delimiter.length( ) );
 			}
+			tokens.push_back( text );
+
+			return ::std::move( tokens );
 		}
 
 		Basic::Basic( ::std::string program_code ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( ::std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {

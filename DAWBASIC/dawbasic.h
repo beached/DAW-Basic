@@ -13,7 +13,7 @@
 
 namespace daw {
 	namespace basic {
-		enum class ValueType { EMPTY, STRING, INTEGER, REAL, BOOLEAN };
+		enum class ValueType { EMPTY, STRING, INTEGER, REAL, BOOLEAN, STRINGARRAY, INTEGERARRAY, REALARRAY, BOOLEANARRAY };
 		typedef int32_t integer;
 		typedef double real;
 		typedef bool boolean;
@@ -58,6 +58,7 @@ namespace daw {
 			::std::vector<ProgramType::iterator> m_program_stack;	// GOSUB/RETURN
 			ProgramType::iterator find_line( integer line_number );
 
+			static ::std::vector<::std::string> split( ::std::string text, ::std::string delimiter );
 			BasicValue& get_variable( ::std::string name );
 			bool is_unary_operator( ::std::string oper );
 			bool is_binary_operator( ::std::string oper );
