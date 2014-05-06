@@ -25,7 +25,7 @@ namespace daw {
 			BasicException CreateError( ErrorTypes error_type, ::std::string msg ) {
 				switch( error_type ) {
 				case ErrorTypes::SYNTAX:
-					msg = "SYNTAX ERROR: " + msg;		
+					msg = "SYNTAX ERROR: " + msg;
 					return BasicException( ::std::move( msg ) );
 				}
 				throw ::std::runtime_error( "Unknown error type tried to be thrown" );
@@ -104,7 +104,7 @@ namespace daw {
 				return ValueType::INTEGER;
 			}
 
-			::std::vector<::std::string> parse_left( ::std::string parse_string, char separator = ' ' ) {
+			::std::vector<::std::string> split_in_two_on_char( ::std::string parse_string, char separator ) {
 				using boost::algorithm::trim;
 				parse_string = trim( parse_string );
 				const auto pos = parse_string.find_first_of( separator );
@@ -434,7 +434,7 @@ namespace daw {
 		bool Basic::is_unary_operator( ::std::string oper ) {
 			return key_exists( m_unary_operators, oper );
 		}
-		
+
 		bool Basic::is_binary_operator( ::std::string oper ) {
 			return key_exists( m_binary_operators, oper );
 		}
@@ -625,7 +625,7 @@ namespace daw {
 		}
 
 		bool Basic::let_helper( ::std::string parse_string, bool show_error ) {
-			auto parsed_string = parse_left( parse_string, '=' );
+			auto parsed_string = split_in_two_on_char( parse_string, '=' );
 			::std::string str_value;
 			if( 2 == parsed_string.size( ) ) {
 				str_value = parsed_string[1];
@@ -692,7 +692,7 @@ namespace daw {
 					return basic_value_string( lhs_str + rhs_str );
 				}
 				default:
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to add non-numeric types" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to add non-numeric types" );
 				}
 			};
 
@@ -820,7 +820,7 @@ namespace daw {
 					if( lhs.first == rhs.first ) {
 						result = false;
 					} else {
-						throw CreateError( ErrorTypes::SYNTAX,  "Attempt to compare different types " + value_type_string( lhs ) + " and " + value_type_string( rhs ) );
+						throw CreateError( ErrorTypes::SYNTAX, "Attempt to compare different types " + value_type_string( lhs ) + " and " + value_type_string( rhs ) );
 					}
 					break;
 				case ValueType::INTEGER:
@@ -849,7 +849,7 @@ namespace daw {
 					if( lhs.first == rhs.first ) {
 						result = true;
 					} else {
-						throw CreateError( ErrorTypes::SYNTAX,  "Attempt to compare different types " + value_type_string( lhs ) + " and " + value_type_string( rhs ) );
+						throw CreateError( ErrorTypes::SYNTAX, "Attempt to compare different types " + value_type_string( lhs ) + " and " + value_type_string( rhs ) );
 					}
 					break;
 				case ValueType::INTEGER:
@@ -878,14 +878,14 @@ namespace daw {
 			//////////////////////////////////////////////////////////////////////////
 			// Unary Operators
 			//////////////////////////////////////////////////////////////////////////
-			
+
 			m_unary_operators["NEG"] = [&]( BasicValue lhs ) {
 				if( ValueType::INTEGER == lhs.first ) {
 					return basic_value_integer( -to_integer( lhs ) );
 				} else if( ValueType::REAL == lhs.first ) {
 					return basic_value_real( -to_real( lhs ) );
 				}
-				throw CreateError( ErrorTypes::SYNTAX,  "Attempt to apply a negative sign to a non-number" );
+				throw CreateError( ErrorTypes::SYNTAX, "Attempt to apply a negative sign to a non-number" );
 			};
 
 			//////////////////////////////////////////////////////////////////////////
@@ -893,17 +893,17 @@ namespace daw {
 			//////////////////////////////////////////////////////////////////////////
 			// Mathematical
 			//////////////////////////////////////////////////////////////////////////
-			
+
 			add_function( "COS", "COS( Angle ) -> Returns the cosine of angle in radians", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "COS requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "COS requires 1 parameter" );
 				}
 				return basic_value_real( cos( to_numeric( value[0] ) ) );
 			} );
 
 			add_function( "SIN", "SIN( Angle ) -> Returns the sine of angle in radians", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "SIN requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "SIN requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = sin( dbl_param );
@@ -912,7 +912,7 @@ namespace daw {
 
 			add_function( "TAN", "TAN( Angle ) -> Returns the tangent of angle in radians", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "TAN requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "TAN requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = tan( dbl_param );
@@ -921,7 +921,7 @@ namespace daw {
 
 			add_function( "ATN", "ATN( Angle ) -> Returns the arctangent of angle in radians", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "ATN requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "ATN requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = atan( dbl_param );
@@ -930,7 +930,7 @@ namespace daw {
 
 			add_function( "EXP", "EXP( Exponent ) -> Resturn e raised to the power of exponent. Where e = 2.71828183...", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "EXP requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "EXP requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = exp( dbl_param );
@@ -939,7 +939,7 @@ namespace daw {
 
 			add_function( "LOG", "LOG( x ) -> Returns the natural logarithm of x", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "LOG requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "LOG requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = log( dbl_param );
@@ -948,7 +948,7 @@ namespace daw {
 
 			add_function( "SQR", "SQR( x ) -> Returns the square root of x", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "SQRT requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "SQRT requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = sqrt( dbl_param );
@@ -957,7 +957,7 @@ namespace daw {
 
 			add_function( "SQUARE", "SQUARE( x ) -> Returns x squared", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "SQR requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "SQR requires 1 parameter" );
 				}
 				if( ValueType::INTEGER == value[0].first ) {
 					auto int_param = to_integer( value[0] );
@@ -972,7 +972,7 @@ namespace daw {
 
 			add_function( "ABS", "ABS( x ) -> Returns the absolute value of x", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "SIN requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "SIN requires 1 parameter" );
 				}
 				if( ValueType::INTEGER == value[0].first ) {
 					auto int_param = to_integer( value[0] );
@@ -989,7 +989,7 @@ namespace daw {
 
 			add_function( "SGN", "SGN( x ) -> Returns the sign of x ( -1 for negative, 0 for 0, and 1 for positive)", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "SGN requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "SGN requires 1 parameter" );
 				}
 				auto result = to_numeric( value[0] );
 				if( 0 < result ) {
@@ -1007,7 +1007,7 @@ namespace daw {
 
 			add_function( "INT", "INT( x ) -> Returns x truncated to the greatest integer less or equal", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "INT requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "INT requires 1 parameter" );
 				}
 				if( ValueType::INTEGER == value[0].first ) {
 					return value[0];
@@ -1020,21 +1020,21 @@ namespace daw {
 
 			add_function( "RND", "RND( [s] ) -> Returns a random number between 0.0 and 1.0.  An optional seed can be specified", [&]( ::std::vector<BasicValue> value ) -> BasicValue {
 				if( 1 >= value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "INT requires 1 or 0 parameters" );
+					throw CreateError( ErrorTypes::SYNTAX, "INT requires 1 or 0 parameters" );
 				}
-				throw CreateError( ErrorTypes::SYNTAX,  "Not implemented" );
-// 				if( ValueType::INTEGER == value[0].first ) {
-// 					return value[0];
-// 				}
-// 
-// 				auto result = to_real( value[0] );
-// 				result = round( result - 0.5 );
-// 				return basic_value_integer( static_cast<integer>(result) );				
+				throw CreateError( ErrorTypes::SYNTAX, "Not implemented" );
+				// 				if( ValueType::INTEGER == value[0].first ) {
+				// 					return value[0];
+				// 				}
+				// 
+				// 				auto result = to_real( value[0] );
+				// 				result = round( result - 0.5 );
+				// 				return basic_value_integer( static_cast<integer>(result) );				
 			} );
 
 			add_function( "NEG", "NEG( x ) -> Returns the negated number", [&]( ::std::vector<BasicValue> values ) {
 				if( 1 != values.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "NEG requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "NEG requires 1 parameter" );
 				}
 				const BasicValue zero = basic_value_integer( 0 );
 				return m_binary_operators["-"]( zero, values[0] );
@@ -1042,7 +1042,7 @@ namespace daw {
 
 			add_function( "POW", "POW( base, exponent ) -> Returns base raised to the power exponent", [&]( ::std::vector<BasicValue> value ) {
 				if( 2 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "POW requires 2 parameters" );
+					throw CreateError( ErrorTypes::SYNTAX, "POW requires 2 parameters" );
 				}
 				if( ValueType::INTEGER == determine_result_type( value[0].first, value[1].first ) ) {
 					auto int_param1 = to_integer( value[0] );
@@ -1060,8 +1060,8 @@ namespace daw {
 
 			add_function( "NOT", "Boolean negation", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "NOT requires 1 parameter" );
-				} 
+					throw CreateError( ErrorTypes::SYNTAX, "NOT requires 1 parameter" );
+				}
 				return basic_value_boolean( !to_boolean( value[0] ) );
 			} );
 
@@ -1071,9 +1071,9 @@ namespace daw {
 
 			add_function( "LEN", "LEN( s ) -> Returns the length of string s", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "LEN requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "LEN requires 1 parameter" );
 				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "LEN only works on string data" );
+					throw CreateError( ErrorTypes::SYNTAX, "LEN only works on string data" );
 				}
 				auto str_value = to_string( value[0] );
 				return basic_value_integer( str_value.size( ) );
@@ -1081,31 +1081,31 @@ namespace daw {
 
 			add_function( "LEFT$", "LEFT$( string, len ) -> Returns the left side of the string up to len characters long", [&]( ::std::vector<BasicValue> value ) {
 				if( 2 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "LEFT$ requires 2 parameters" );
+					throw CreateError( ErrorTypes::SYNTAX, "LEFT$ requires 2 parameters" );
 				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The first parameter of LEFT$ must be a string" );
+					throw CreateError( ErrorTypes::SYNTAX, "The first parameter of LEFT$ must be a string" );
 				} else if( ValueType::INTEGER != get_value_type( value[1] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The second parameter of LEFT$ must be an integer" );
+					throw CreateError( ErrorTypes::SYNTAX, "The second parameter of LEFT$ must be an integer" );
 				}
 				auto len = to_integer( value[1] );
 				if( 0 > len ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The len parameter of LEFT$ must be positive" );
+					throw CreateError( ErrorTypes::SYNTAX, "The len parameter of LEFT$ must be positive" );
 				}
 				return basic_value_string( to_string( value[0] ).substr( 0, ::std::move( len ) ) );
 			} );
 
 			add_function( "RIGHT$", "RIGHT$( string, len ) -> Returns the right side of the string up to len characters long", [&]( ::std::vector<BasicValue> value ) {
 				if( 2 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "RIGHT$ requires 2 parameters" );
+					throw CreateError( ErrorTypes::SYNTAX, "RIGHT$ requires 2 parameters" );
 				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The first parameter of RIGHT$ must be a string" );
+					throw CreateError( ErrorTypes::SYNTAX, "The first parameter of RIGHT$ must be a string" );
 				} else if( ValueType::INTEGER != get_value_type( value[1] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The second parameter of RIGHT$ must be an integer" );
+					throw CreateError( ErrorTypes::SYNTAX, "The second parameter of RIGHT$ must be an integer" );
 				}
 				auto str_value = to_string( value[0] );
 				auto start = to_integer( value[1] );
 				if( 0 > start ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The len parameter of RIGHT$ must be positive" );
+					throw CreateError( ErrorTypes::SYNTAX, "The len parameter of RIGHT$ must be positive" );
 				}
 				start = str_value.size( ) - start;
 				return basic_value_string( str_value.substr( start ) );
@@ -1113,39 +1113,39 @@ namespace daw {
 
 			add_function( "MID$", "MID$( string, start, len ) -> Returns the middle of the string from start up to len characters long", [&]( ::std::vector<BasicValue> value ) {
 				if( 3 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "MID$ requires 3 parameters" );
+					throw CreateError( ErrorTypes::SYNTAX, "MID$ requires 3 parameters" );
 				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The first parameter of MID$ must be a string" );
+					throw CreateError( ErrorTypes::SYNTAX, "The first parameter of MID$ must be a string" );
 				} else if( ValueType::INTEGER != get_value_type( value[1] ) || ValueType::INTEGER != get_value_type( value[2] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The parameters start and len of MID$ must be an integer" );
+					throw CreateError( ErrorTypes::SYNTAX, "The parameters start and len of MID$ must be an integer" );
 				}
 
 				auto start = to_integer( ::std::move( value[1] ) );
 				if( 1 > start ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The start parameter of MID$ must be greater than zero" );
+					throw CreateError( ErrorTypes::SYNTAX, "The start parameter of MID$ must be greater than zero" );
 				}
 				--start;	// BASIC arrays start at 1
 				auto len = to_integer( ::std::move( value[2] ) );
 				if( 1 > len ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "The len parameter of MID$ must be positive" );
+					throw CreateError( ErrorTypes::SYNTAX, "The len parameter of MID$ must be positive" );
 				}
 				return basic_value_string( to_string( ::std::move( value[0] ) ).substr( start, len ) );
 			} );
 
 			add_function( "STR$", "STR$( x ) -> Converts a number to a string", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "STR$ requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "STR$ requires 1 parameter" );
 				} else if( ValueType::INTEGER != get_value_type( value[0] ) && ValueType::REAL != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "STR$ only works on numeric data" );
+					throw CreateError( ErrorTypes::SYNTAX, "STR$ only works on numeric data" );
 				}
 				return basic_value_string( to_string( ::std::move( value[0] ) ) );
 			} );
-			
+
 			add_function( "VAL", "VAL( s ) -> Converts a string to a number", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "VAL requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "VAL requires 1 parameter" );
 				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "VAL only works on string data" );
+					throw CreateError( ErrorTypes::SYNTAX, "VAL only works on string data" );
 				}
 				auto str_value = to_string( value[0] );
 				switch( get_value_type( str_value ) ) {
@@ -1154,37 +1154,37 @@ namespace daw {
 				case ValueType::REAL:
 					return basic_value_real( to_real( ::std::move( str_value ) ) );
 				}
-				throw CreateError( ErrorTypes::SYNTAX,  "Attempt to convert a string of non-numbers to a number" );
+				throw CreateError( ErrorTypes::SYNTAX, "Attempt to convert a string of non-numbers to a number" );
 			} );
 
 			add_function( "ASC", "ASC( s ) -> Returns the ASCII code of the first character of a string", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "ASC requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "ASC requires 1 parameter" );
 				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "ASC only works on string data" );
+					throw CreateError( ErrorTypes::SYNTAX, "ASC only works on string data" );
 				}
 				auto chr_value = to_string( value[0] )[0];
 				return basic_value_integer( static_cast<integer>(chr_value) );
- 			} );
+			} );
 
 			add_function( "CHR$", "CHR$( x ) -> Returns a string with the character of the specified ASCII code", [&]( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "CHR$ requires 1 parameter" );
+					throw CreateError( ErrorTypes::SYNTAX, "CHR$ requires 1 parameter" );
 				} else if( ValueType::INTEGER != get_value_type( value[0] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "CHR$ only works on integer data" );
+					throw CreateError( ErrorTypes::SYNTAX, "CHR$ only works on integer data" );
 				}
 				auto ascii_code = to_integer( value[0] );
 				if( 0 > ascii_code || 255 < ascii_code ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Specified ASCII code must be between 0 and 255 inclusive" );
+					throw CreateError( ErrorTypes::SYNTAX, "Specified ASCII code must be between 0 and 255 inclusive" );
 				}
 				return basic_value_string( char_to_string( static_cast<char>(ascii_code) ) );
 			} );
 
 			add_function( "SPLIT$", "SPLIT$( string, delimiter ) -> Returns an array of strings from the original string delimited by delimiter", [&]( ::std::vector<BasicValue> value ) {
 				if( 2 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "SPLIT$ requires 2 parameters" );
+					throw CreateError( ErrorTypes::SYNTAX, "SPLIT$ requires 2 parameters" );
 				} else if( ValueType::STRING != get_value_type( value[0] ) || ValueType::STRING != get_value_type( value[1] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "SPLIT$ requires string parameters" );
+					throw CreateError( ErrorTypes::SYNTAX, "SPLIT$ requires string parameters" );
 				}
 				auto str_string = to_string( value[0] );
 				auto str_delim = to_string( value[1] );
@@ -1197,7 +1197,7 @@ namespace daw {
 			//////////////////////////////////////////////////////////////////////////
 
 			m_keywords["NEW"] = [&]( ::std::string parse_string )-> bool {
-				reset( );				
+				reset( );
 				return true;
 			};
 
@@ -1212,7 +1212,7 @@ namespace daw {
 
 			m_keywords["DELETE"] = [&]( ::std::string parse_string ) -> bool {
 				if( ValueType::INTEGER != get_value_type( parse_string ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "DELETE requires an INTEGER parameter for the line number to delete" );
+					throw CreateError( ErrorTypes::SYNTAX, "DELETE requires an INTEGER parameter for the line number to delete" );
 				}
 				remove_line( to_integer( parse_string ) );
 				return true;
@@ -1229,7 +1229,7 @@ namespace daw {
 
 			m_keywords["STOP"] = [&]( ::std::string ) -> bool {
 				if( RunMode::IMMEDIATE == m_run_mode ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to STOP from outside a program" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to STOP from outside a program" );
 				}
 				::std::cout << "BREAK IN " << m_program_it->first << ::std::endl;
 				m_exiting = true;
@@ -1238,7 +1238,7 @@ namespace daw {
 
 			m_keywords["CONT"] = [&]( ::std::string ) -> bool {
 				if( RunMode::DEFERRED == m_run_mode ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to CONT from inside a program" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to CONT from inside a program" );
 				}
 				m_basic->m_run_mode = RunMode::DEFERRED;
 				return m_basic->continue_run( );
@@ -1246,12 +1246,12 @@ namespace daw {
 
 			m_keywords["GOTO"] = [&]( ::std::string parse_string ) -> bool {
 				if( RunMode::IMMEDIATE == m_run_mode ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to GOTO from outside a program" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to GOTO from outside a program" );
 				}
 				{
 					auto value_type = get_value_type( parse_string );
 					if( ValueType::INTEGER != value_type ) {
-						throw CreateError( ErrorTypes::SYNTAX,  "Can only GOTO line numbers" );
+						throw CreateError( ErrorTypes::SYNTAX, "Can only GOTO line numbers" );
 					}
 				}
 				set_program_it( to_integer( parse_string ), -1 );
@@ -1261,7 +1261,7 @@ namespace daw {
 			m_keywords["GOSUB"] = [&]( ::std::string parse_string ) -> bool {
 				// Store program line on stack and then call goto
 				if( RunMode::IMMEDIATE == m_run_mode ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to GOSUB from outside a program" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to GOSUB from outside a program" );
 				}
 				m_program_stack.push_back( m_program_it );
 				m_keywords["GOTO"]( parse_string );
@@ -1270,22 +1270,23 @@ namespace daw {
 			m_keywords["RETURN"] = [&]( ::std::string parse_string ) -> bool {
 				// Pop program line from stack and then run GOTO
 				if( RunMode::IMMEDIATE == m_run_mode ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to RETURN from outside a program" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to RETURN from outside a program" );
 				} else if( m_program_stack.empty( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to RETURN without a preceding GOSUB" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to RETURN without a preceding GOSUB" );
 				}
 
 				set_program_it( pop( m_program_stack )->first );
 				return true;
 
 			};
-			
+
 			m_keywords["PRINT"] = [&]( ::std::string parse_string ) mutable -> bool {
 				boost::algorithm::trim( parse_string );
 				if( parse_string.empty( ) ) {
 					::std::cout << ::std::endl;
 					return true;
 				}
+
 				::std::string evaluated_value = to_string( evaluate( parse_string ) );
 				::std::cout << ::std::move( evaluated_value ) << ::std::endl;
 				return true;
@@ -1304,7 +1305,7 @@ namespace daw {
 
 			m_keywords["END"] = [&]( ::std::string ) -> bool {
 				if( RunMode::IMMEDIATE == m_run_mode ) {
-					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to END from outside a program" );
+					throw CreateError( ErrorTypes::SYNTAX, "Attempt to END from outside a program" );
 				}
 				m_exiting = true;
 				return true;
@@ -1357,49 +1358,49 @@ namespace daw {
 			};
 
 			m_keywords["THEN"] = [&]( std::string ) -> bool {
-				throw CreateError( ErrorTypes::SYNTAX,  "THEN is invalid without a preceeding IF and condition" );
+				throw CreateError( ErrorTypes::SYNTAX, "THEN is invalid without a preceeding IF and condition" );
 			};
 
-// 			m_keywords["IF"] = [&]( ::std::string parse_string ) -> bool {
-// 				if( RunMode::IMMEDIATE == m_run_mode ) {
-// 					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to IF from outside a program" );
-// 				}
-// 				// IF <condition> <THEN [GOTO] <LINE NUMBER>>
-// 
-// 				// Verify that last token is an integer
-// 				auto then_pos = boost::algorithm::to_upper_copy( parse_string ).find( "THEN" );
-// 				if( ::std::string::npos == then_pos ) {
-// 					throw CreateError( ErrorTypes::SYNTAX,  "IF keyword must have a THEN clause" );
-// 				}
-// 				// Evaluate condition
-// 				auto condition = evaluate( parse_string.substr( 0, then_pos ) );
-// 				if( to_boolean( condition ) ) {
-// 					::std::string goto_clause = parse_string.substr( then_pos + 4 );
-// 					auto goto_pos = boost::algorithm::to_upper_copy( goto_clause ).find( "GOTO" );
-// 					if( ::std::string::npos != goto_pos ) {
-// 						goto_clause = goto_clause.substr( goto_pos + 4 );
-// 					}
-// 					goto_clause = boost::algorithm::trim_copy( goto_clause );
-// 					if( ValueType::INTEGER != get_value_type( goto_clause ) ) {
-// 						throw CreateError( ErrorTypes::SYNTAX,  "Error parsing IF after the THEN" );
-// 					}
-// 					return m_keywords["GOTO"]( goto_clause );
-// 				}
-// 				return true;
-// 			};
+			// 			m_keywords["IF"] = [&]( ::std::string parse_string ) -> bool {
+			// 				if( RunMode::IMMEDIATE == m_run_mode ) {
+			// 					throw CreateError( ErrorTypes::SYNTAX,  "Attempt to IF from outside a program" );
+			// 				}
+			// 				// IF <condition> <THEN [GOTO] <LINE NUMBER>>
+			// 
+			// 				// Verify that last token is an integer
+			// 				auto then_pos = boost::algorithm::to_upper_copy( parse_string ).find( "THEN" );
+			// 				if( ::std::string::npos == then_pos ) {
+			// 					throw CreateError( ErrorTypes::SYNTAX,  "IF keyword must have a THEN clause" );
+			// 				}
+			// 				// Evaluate condition
+			// 				auto condition = evaluate( parse_string.substr( 0, then_pos ) );
+			// 				if( to_boolean( condition ) ) {
+			// 					::std::string goto_clause = parse_string.substr( then_pos + 4 );
+			// 					auto goto_pos = boost::algorithm::to_upper_copy( goto_clause ).find( "GOTO" );
+			// 					if( ::std::string::npos != goto_pos ) {
+			// 						goto_clause = goto_clause.substr( goto_pos + 4 );
+			// 					}
+			// 					goto_clause = boost::algorithm::trim_copy( goto_clause );
+			// 					if( ValueType::INTEGER != get_value_type( goto_clause ) ) {
+			// 						throw CreateError( ErrorTypes::SYNTAX,  "Error parsing IF after the THEN" );
+			// 					}
+			// 					return m_keywords["GOTO"]( goto_clause );
+			// 				}
+			// 				return true;
+			// 			};
 
 			m_keywords["IF"] = [&]( ::std::string parse_string ) -> bool {
 				// IF <CONDITION> THEN <statement>
 				// IF <CONDITION> THEN <line_number>
 				// IF <CONDITION> GOTO <line_number>
-				
+
 				// Find end of condition
 				integer start_of_thengoto_clause = ::std::string::npos;
 				{
 					auto is_then_goto = [&]( int32_t pos ) -> bool {
 						const ::std::vector<::std::string> strings_to_find{ "THEN", "GOTO" };
 						for( auto& string_to_find : strings_to_find ) {
-							if( pos + static_cast<int32_t>( string_to_find.size( ) ) < parse_string[pos] ) {
+							if( pos + static_cast<int32_t>(string_to_find.size( )) < parse_string[pos] ) {
 								auto current_string = boost::algorithm::to_upper_copy( parse_string.substr( pos, string_to_find.size( ) ) );
 								return string_to_find == current_string;
 							}
@@ -1407,7 +1408,7 @@ namespace daw {
 						return false;
 					};
 
-					for( int32_t pos = 0; pos < static_cast<int32_t>( parse_string.size( ) ); ++pos ) {
+					for( int32_t pos = 0; pos < static_cast<int32_t>(parse_string.size( )); ++pos ) {
 						const auto current_char = parse_string[pos];
 						if( '"' == current_char ) {
 							pos += find_end_of_string( parse_string.substr( pos ) );
@@ -1419,7 +1420,7 @@ namespace daw {
 						}
 					}
 					if( ::std::string::npos == start_of_thengoto_clause ) {
-						throw CreateError( ErrorTypes::SYNTAX,  "Unable to find end of condition in IF keyword" );
+						throw CreateError( ErrorTypes::SYNTAX, "Unable to find end of condition in IF keyword" );
 					}
 				}
 				std::string condition = parse_string.substr( 0, start_of_thengoto_clause );
@@ -1428,7 +1429,7 @@ namespace daw {
 					if( ValueType::INTEGER == get_value_type( str_action ) ) {
 						str_action = "GOTO " + str_action;
 					}
-					return parse_line( str_action );				
+					return parse_line( str_action );
 				}
 				// Do nothing
 				return true;
@@ -1437,13 +1438,13 @@ namespace daw {
 			//////////////////////////////////////////////////////////////////////////
 			// Constants
 			//////////////////////////////////////////////////////////////////////////
-			
-			add_constant( "TRUE","", basic_value_boolean( true ) );
+
+			add_constant( "TRUE", "", basic_value_boolean( true ) );
 			add_constant( "FALSE", "", basic_value_boolean( false ) );
 			add_constant( "PI", "Trigometric Pi value", basic_value_real( boost::math::constants::pi<real>( ) ) );
 
 
-			clear_program( );			
+			clear_program( );
 		}
 
 		//////////////////////////////////////////////////////////////////////////
@@ -1462,8 +1463,8 @@ namespace daw {
 			};
 
 			const auto is_logical_and = []( const ::std::string& value, int32_t pos, int32_t end ) -> bool {
-				const ::std::string check_text{ "AND" };				
-				if( pos + static_cast<int32_t>( check_text.size( ) ) <= end ) {
+				const ::std::string check_text{ "AND" };
+				if( pos + static_cast<int32_t>(check_text.size( )) <= end ) {
 					auto txt_window = boost::algorithm::to_upper_copy( value.substr( pos, check_text.size( ) ) );
 					if( check_text == txt_window ) {
 						auto ws_check = value[pos + check_text.size( )];
@@ -1541,7 +1542,7 @@ namespace daw {
 				case '<':
 				case '>':
 				case '=': {
-					explicit_operator:
+				explicit_operator:
 					::std::string current_operator = char_to_string( current_char );
 					// Negation of numbers					
 					if( '-' == current_char ) {
@@ -1551,10 +1552,10 @@ namespace daw {
 						} else if( !operator_stack.empty( ) && 1 == operand_stack.size( ) % 2 == 1 ) {
 							current_operator = "NEG";
 						}
-					}					
+					}
 					if( '>' == current_char || '<' == current_char ) {
 						if( current_position >= end ) {
-							throw CreateError( ErrorTypes::SYNTAX,  "Binary operator with only left hand side, not right" );
+							throw CreateError( ErrorTypes::SYNTAX, "Binary operator with only left hand side, not right" );
 						}
 						if( '=' == value[current_position + 1] ) {
 							current_operator += value[++current_position];
@@ -1577,15 +1578,15 @@ namespace daw {
 						} else if( is_binary_operator( prev_operator ) ) {
 							result = m_binary_operators[prev_operator]( pop( operand_stack ), ::std::move( rhs ) );
 						} else {
-							throw CreateError( ErrorTypes::SYNTAX,  "Unknown operator " + prev_operator );	// Probably should never happen...but you know
+							throw CreateError( ErrorTypes::SYNTAX, "Unknown operator " + prev_operator );	// Probably should never happen...but you know
 						}
 						operand_stack.push_back( result );
 					}
 					operator_stack.push_back( current_operator );
 				}
-				break;
+					break;
 				default: {
-					explicit_default:
+				explicit_default:
 					auto current_operand = value.substr( current_position );
 					auto end_of_operand = find_end_of_operand( current_operand );
 					current_operand = current_operand.substr( 0, end_of_operand + 1 );
@@ -1593,14 +1594,14 @@ namespace daw {
 					int32_t lb_count = ::std::count( ::std::begin( current_operand ), ::std::end( current_operand ), '(' );
 					int32_t rb_count = ::std::count( ::std::begin( current_operand ), ::std::end( current_operand ), ')' );
 					if( lb_count != rb_count ) {
-						throw CreateError( ErrorTypes::SYNTAX,  "Unclosed bracket on function '" + current_operand + "'" );
+						throw CreateError( ErrorTypes::SYNTAX, "Unclosed bracket on function '" + current_operand + "'" );
 					}
 					if( 0 < lb_count ) {	// We are a function, find parameters and push value to stack
 						// Find function name
 						auto first_bracket = current_operand.find( '(' );
 						auto function_name = boost::algorithm::to_upper_copy( current_operand.substr( 0, first_bracket ) );
 						if( !is_function( function_name ) ) {
-							throw CreateError( ErrorTypes::SYNTAX,  "Unknown function '" + function_name + "'" );
+							throw CreateError( ErrorTypes::SYNTAX, "Unknown function '" + function_name + "'" );
 						}
 						auto param_string = current_operand.substr( first_bracket + 1, current_operand.size( ) - first_bracket - 2 );
 						auto function_parameters = evaluate_parameters( param_string );
@@ -1619,7 +1620,7 @@ namespace daw {
 							operand_stack.push_back( basic_value_real( ::std::move( current_operand ) ) );
 							break;
 						default:
-							throw CreateError( ErrorTypes::SYNTAX,  "Unknown symbol '" + current_operand + "'" );
+							throw CreateError( ErrorTypes::SYNTAX, "Unknown symbol '" + current_operand + "'" );
 						}
 					}
 					current_position += end_of_operand;
@@ -1638,7 +1639,7 @@ namespace daw {
 				} else if( is_binary_operator( current_operator ) ) {
 					result = m_binary_operators[current_operator]( pop( operand_stack ), ::std::move( rhs ) );
 				} else {
-					throw CreateError( ErrorTypes::SYNTAX,  "Unknown operator " + current_operator );	// Probably should never happen...but you know
+					throw CreateError( ErrorTypes::SYNTAX, "Unknown operator " + current_operator );	// Probably should never happen...but you know
 				}
 				operand_stack.push_back( result );
 			}
@@ -1647,7 +1648,7 @@ namespace daw {
 			}
 			auto current_operand = pop( operand_stack );
 			if( !operand_stack.empty( ) ) {
-				throw CreateError( ErrorTypes::SYNTAX,  "Unknown error while parsing line.  Not value left at end of evaluation" );
+				throw CreateError( ErrorTypes::SYNTAX, "Unknown error while parsing line.  Not value left at end of evaluation" );
 			}
 			return current_operand;
 		}
@@ -1662,7 +1663,7 @@ namespace daw {
 			sort_program_code( );
 			auto line_it = ::std::begin( m_program ) + ::std::distance( ::std::begin( m_program ), find_line( line_number ) + offset );
 			if( ::std::end( m_program ) == line_it ) {
-				throw CreateError( ErrorTypes::SYNTAX,  "Attempt to jump to an invalid line" );
+				throw CreateError( ErrorTypes::SYNTAX, "Attempt to jump to an invalid line" );
 			}
 			m_program_it = line_it;
 		}
@@ -1670,7 +1671,7 @@ namespace daw {
 		bool Basic::continue_run( ) {
 			auto next_line = m_program_it + 1;
 			if( ::std::end( m_program ) == next_line ) {
-				throw CreateError( ErrorTypes::SYNTAX,  "Cannot continue.  End of program reached" );
+				throw CreateError( ErrorTypes::SYNTAX, "Cannot continue.  End of program reached" );
 			}
 			return run( next_line->first );
 		}
@@ -1683,7 +1684,7 @@ namespace daw {
 			m_has_syntax_error = false;
 			if( 0 <= line_number ) {
 				set_program_it( line_number );
-			} else {				
+			} else {
 				m_program_it = first_line( );
 			}
 			while( m_program_it != ::std::end( m_program ) ) {
@@ -1716,7 +1717,7 @@ namespace daw {
 			size_t pos = 0;
 			::std::string token;
 
-			while( ::std::string::npos != ( pos = text.find( delimiter ) ) ) {
+			while( ::std::string::npos != (pos = text.find( delimiter )) ) {
 				token = text.substr( 0, pos );
 				tokens.push_back( token );
 				text.erase( 0, pos + delimiter.length( ) );
@@ -1740,7 +1741,7 @@ namespace daw {
 				msg = "SYNTAX ERROR: " + msg;
 				if( RunMode::DEFERRED == m_run_mode && ::std::end( m_program ) != m_program_it ) {
 					msg += "\nError on line " + m_program_it->first;
-				} 
+				}
 				return BasicException( ::std::move( msg ) );
 			}
 			throw ::std::runtime_error( "Unknown error type tried to be thrown" );
@@ -1748,7 +1749,7 @@ namespace daw {
 
 		bool Basic::parse_line( const ::std::string& parse_string, bool show_ready ) {
 			m_exiting = false;
-			const auto parsed_string( parse_left( parse_string ) );
+			auto parsed_string( split_in_two_on_char( parse_string, ' ' ) );
 			try {
 				const auto value_type = get_value_type( parsed_string[0] );
 				if( ValueType::INTEGER == value_type ) {
@@ -1766,37 +1767,64 @@ namespace daw {
 					if( boost::algorithm::trim_copy( parse_string ).empty( ) ) {
 						return true;
 					}
-					::std::string params;
-					if( 2 == parsed_string.size( ) ) {
-						params = parsed_string[1];
-					}
-					auto keyword = boost::algorithm::to_upper_copy( parsed_string[0] );
-					if( !is_keyword( keyword ) ) {
-						// Try assignment if the above fails
-						if( let_helper( parse_string, false ) ) {
-							return true;
-						} else {
-							throw CreateError( ErrorTypes::SYNTAX, "Invalid keyword '" + keyword + "'" );
+
+					// Except within quoted areas, split string on colon : boundaries 
+
+					int32_t last_pos = 0;
+					int32_t pos = 0;
+					::std::vector<::std::string> statements;
+					for( ; pos < static_cast<int32_t>(parse_string.size( )); ++pos ) {
+						const auto current_char = parse_string[pos];
+						switch( current_char ) {
+						case '"':
+							pos += find_end_of_string( parse_string.substr( pos ) );
+							break;
+						case ':':
+							statements.push_back( parse_string.substr( last_pos, pos - last_pos ) );
+							if( pos + 1 < static_cast<int32_t>(parse_string.size( )) ) {
+								++pos;
+							}
+							last_pos = pos;
+							break;
 						}
 					}
-					auto result = m_keywords[keyword]( params );
-					if( m_exiting ) {
-						return m_run_mode != RunMode::IMMEDIATE;
-					}
+					statements.push_back( parse_string.substr( last_pos, pos - last_pos ) );
 
-					if( show_ready && result && RunMode::IMMEDIATE == m_run_mode ) {
+					for( auto current_statement : statements ) {
+						::std::string params;
+						parsed_string = split_in_two_on_char( current_statement, ' ' );
+						if( 2 == parsed_string.size( ) ) {
+							params = parsed_string[1];
+						}
+						auto keyword = boost::algorithm::to_upper_copy( parsed_string[0] );
+						bool result = false;
+						if( !is_keyword( keyword ) ) {
+							// Try assignment if the above fails
+							if( !(result = let_helper( current_statement, false )) ) {
+								throw CreateError( ErrorTypes::SYNTAX, "Invalid keyword '" + keyword + "'" );
+							}
+						} else {
+							result = m_keywords[keyword]( params );
+						}
+						if( m_exiting ) {
+							return m_run_mode != RunMode::IMMEDIATE;
+						}
+						if( !result ) {
+							return result;
+						}
+					}
+					if( show_ready && RunMode::IMMEDIATE == m_run_mode ) {
 						::std::cout << "\nREADY" << ::std::endl;
 					}
-					return result;
-				} else if( ValueType::EMPTY == value_type ) {
 					return true;
+					::std::string msg( parsed_string[0] + " is an invalid keyword" );
+					throw CreateError( ErrorTypes::SYNTAX, msg );
 				}
-				::std::string msg( "Syntax Error: " );
-				msg += parsed_string[0];
-				msg += " is an invalid token";
-				throw CreateError( ErrorTypes::SYNTAX, msg );
 			} catch( BasicException se ) {
 				::std::cerr << ::std::endl << se.what( ) << ::std::endl;
+				if( show_ready ) {
+					::std::cout << "\nREADY" << ::std::endl;
+				}
 				m_has_syntax_error = true;
 				return true;
 			} catch( ::std::exception ex ) {
@@ -1807,6 +1835,7 @@ namespace daw {
 				return false;
 			}
 		}
+	
 
-	}  // namespace basic
+}  // namespace basic
 } // namespace daw
