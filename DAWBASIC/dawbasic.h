@@ -13,6 +13,12 @@
 
 namespace daw {
 	namespace basic {
+		class BasicException: public ::std::runtime_error {
+		public:
+			explicit BasicException( const ::std::string& msg ): runtime_error( msg ) { }
+			explicit BasicException( const char* msg ): runtime_error( msg ) { }
+		};
+
 		enum class ValueType { EMPTY, STRING, INTEGER, REAL, BOOLEAN, STRINGARRAY, INTEGERARRAY, REALARRAY, BOOLEANARRAY };
 		typedef int32_t integer;
 		typedef double real;
@@ -26,6 +32,7 @@ namespace daw {
 		typedef ::std::pair<integer, ::std::string> ProgramLine;
 		typedef ::std::vector<ProgramLine> ProgramType;
 
+		enum class ErrorTypes { SYNTAX };		
 
 		class Basic {
 		private:
@@ -75,6 +82,10 @@ namespace daw {
 			ProgramType::iterator first_line( );
 			BasicValue exec_function( ::std::string name, ::std::vector<BasicValue> arguments );
 			::std::unique_ptr<Basic> m_basic;
+			bool let_helper( ::std::string parse_string, bool show_error = true );
+
+			BasicException CreateError( ErrorTypes error_type, ::std::string msg );
+
 		public:
 			Basic( );
 			Basic( ::std::string program_code );
