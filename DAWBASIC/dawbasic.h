@@ -76,6 +76,7 @@ namespace daw {
 			::std::unique_ptr<Basic> m_basic;
 		public:
 			Basic( );
+			Basic( ::std::string program_code );
 
 			void add_variable( ::std::string name, BasicValue value );
 			void add_constant( ::std::string name, ::std::string description, BasicValue value );

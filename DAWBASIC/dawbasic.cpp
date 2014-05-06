@@ -1617,7 +1617,33 @@ namespace daw {
 		}
 
 		Basic::Basic( ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( ::std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {
+			
+		}
+
+		namespace {
+			template<typename valueType>
+			std::vector<valueType> split( valueType text, valueType delimiter ) {
+				std::vector<valueType> tokens;
+				size_t pos = 0;
+				valueType token;
+
+				while( (pos = text.find( delimiter )) != valueType::npos ) {
+					token = text.substr( 0, pos );
+					tokens.push_back( token );
+					text.erase( 0, pos + delimiter.length( ) );
+				}
+				tokens.push_back( text );
+
+				return tokens;
+			}
+		}
+
+		Basic::Basic( ::std::string program_code ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( ::std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {
 			init( );
+			for( auto current_line : split( program_code, ::std::string( "\n" ) ) ) {
+				parse_line( current_line );
+			}
+
 		}
 
 		bool Basic::parse_line( const ::std::string& parse_string ) {
