@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <memory>
 
 
 namespace daw {
@@ -27,12 +28,25 @@ namespace daw {
 
 
 		class Basic {
-		private:			
+		private:
+			struct ConstantType {
+				::std::string description;
+				BasicValue value;
+				ConstantType( ) { }
+				ConstantType( ::std::string Description, BasicValue Value ): description( Description ), value( Value ) { }
+			};
+			struct FunctionType {
+				::std::string description;
+				BasicFunction func;
+				FunctionType( ) { }
+				FunctionType( ::std::string Description, BasicFunction Function ): description( Description ), func( Function ) { }
+			};
+
 			BasicValue evaluate( ::std::string value );
 
-			::std::map<::std::string, BasicFunction> m_functions;
+			::std::map<::std::string, FunctionType> m_functions;
 			::std::map <::std::string, BasicValue> m_variables;
-			::std::map <::std::string, BasicValue> m_constants;
+			::std::map <::std::string, ConstantType> m_constants;
 			::std::map<::std::string, ::std::function<bool( ::std::string )>> m_keywords;
 			ProgramType m_program;
 			::std::map<::std::string, BasicBinaryOperand> m_binary_operators;
@@ -47,16 +61,29 @@ namespace daw {
 			BasicValue& get_variable( ::std::string name );
 			bool is_unary_operator( ::std::string oper );
 			bool is_binary_operator( ::std::string oper );
+			void clear_program( );
+			void clear_variables( );
+			void reset( );
 			void init( );
 			bool m_has_syntax_error;
 			bool m_exiting;
-			bool run( );
+			void set_program_it( integer line_number, integer offset = 0 );
+			bool run( integer line_number = -1 );
+			bool continue_run( );
+			void sort_program_code( );
+			ProgramType::iterator first_line( );
+			BasicValue exec_function( ::std::string name, ::std::vector<BasicValue> arguments );
+			::std::unique_ptr<Basic> m_basic;
 		public:
 			Basic( );
 
 			void add_variable( ::std::string name, BasicValue value );
-			void add_constant( ::std::string name, BasicValue value );
-
+			void add_constant( ::std::string name, ::std::string description, BasicValue value );
+			void add_function( ::std::string name, ::std::string description, BasicFunction func );
+			::std::string list_functions( );
+			::std::string list_constants( );
+			::std::string list_keywords( );
+			::std::string list_variables( );
 			bool is_constant( ::std::string name );
 			void remove_constant( ::std::string name, bool throw_on_nonexist );
 

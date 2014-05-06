@@ -5,7 +5,6 @@
 
 #include <iostream>
 
-
 int main( int argc, char* argv[] ) {
 	daw::basic::Basic b;
 	::std::string current_line;

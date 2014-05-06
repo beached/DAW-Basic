@@ -1,4 +1,4 @@
-#include "dawbasic.h"
+﻿#include "dawbasic.h"
 
 #include <algorithm>
 #include <boost/algorithm/string.hpp>
@@ -47,7 +47,11 @@ namespace daw {
 
 			const BasicValue EMPTY_BASIC_VALUE{ ValueType::EMPTY, boost::any( ) };
 
-			ValueType get_value_type( const ::std::string value, ::std::string locale_str = "" ) {
+			ValueType get_value_type( BasicValue value ) {
+				return ::std::move( value.first );
+			}
+
+			ValueType get_value_type( const ::std::string& value, ::std::string locale_str = "" ) {
 				// DAW erase
 
 				if( value.empty( ) ) {
@@ -193,7 +197,7 @@ namespace daw {
 					ss << ::std::setprecision( ::std::numeric_limits<real>::digits10 ) << to_real( ::std::move( value ) );
 					break;
 				case ValueType::STRING:
-					ss << "\"" << boost::any_cast<::std::string>(value.second) << "\"";
+					ss << boost::any_cast<::std::string>(value.second);
 					break;
 				case ValueType::BOOLEAN:
 					if( to_boolean( value ) ) {
@@ -350,11 +354,10 @@ namespace daw {
 				bool has_brackets = false;
 				for( int32_t pos = 0; pos < static_cast<int32_t>(value.size( )); ++pos ) {
 					auto current_char = value[pos];
-					if( '"' == current_char ) {
-						throw SyntaxException( "Unexpected quote \" character at position " + pos );
-					}
 					if( 0 >= bracket_count ) {
-						if( ')' == current_char ) {
+						if( '"' == current_char ) {
+							throw SyntaxException( "Unexpected quote \" character at position " + pos );
+						} else if( ')' == current_char ) {
 							throw SyntaxException( "Unexpected close bracket ) character at position " + pos );
 						} else if( ::std::end( end_chars ) != ::std::find( ::std::begin( end_chars ), ::std::end( end_chars ), current_char ) ) {
 							return pos - 1;
@@ -401,6 +404,13 @@ namespace daw {
 				}
 			}
 
+			::std::string char_to_string( char chr ) {
+				::std::string result( " " );
+				result[0] = chr;
+				return ::std::move( result );
+			};
+
+
 		}	// namespace anonymous
 
 		bool Basic::is_unary_operator( ::std::string oper ) {
@@ -444,7 +454,7 @@ namespace daw {
 
 		BasicValue Basic::get_variable_constant( ::std::string name ) {
 			if( is_constant( name ) ) {
-				return  m_constants[name];
+				return  m_constants[name].value;
 			} else if( is_variable( name ) ) {
 				return m_variables[name];
 			}
@@ -460,14 +470,14 @@ namespace daw {
 			m_variables[::std::move( name )] = ::std::move( value );
 		}
 
-		void Basic::add_constant( ::std::string name, BasicValue value ) {
+		void Basic::add_constant( ::std::string name, ::std::string description, BasicValue value ) {
 			if( is_function( name ) | is_keyword( name ) ) {
 				throw SyntaxException( "Cannot create a constant with the same name as a system function/keyword" );
 			}
 			if( key_exists( m_variables, name ) ) {
 				remove_variable( name );
 			}
-			m_constants[::std::move( name )] = ::std::move( value );
+			m_constants[::std::move( name )] = ConstantType{ ::std::move( description ), ::std::move( value ) };
 		}
 
 		bool Basic::is_variable( ::std::string name ) {
@@ -495,6 +505,13 @@ namespace daw {
 			m_constants.erase( pos );
 		}
 
+		void Basic::add_function( ::std::string name, ::std::string description, BasicFunction func ) {
+			if( is_keyword( name ) ) {
+				throw ::std::runtime_error( "Cannot create a function with the same name as a system keyword" );
+			}
+			m_functions[::std::move( name )] = FunctionType( ::std::move( description ), ::std::move( func ) );
+		}
+
 		ProgramType::iterator Basic::find_line( integer line_number ) {
 			auto result = ::std::find_if( ::std::begin( m_program ), ::std::end( m_program ), [&line_number]( ProgramLine current_line ) {
 				return current_line.first == line_number;
@@ -504,7 +521,7 @@ namespace daw {
 
 		void Basic::add_line( integer line_number, ::std::string line ) {
 			auto pos = find_line( line_number );
-			if( m_program.end( ) == pos ) {
+			if( ::std::end( m_program ) == pos ) {
 				m_program.push_back( make_pair( line_number, line ) );
 			} else {
 				pos->second = line;
@@ -534,7 +551,65 @@ namespace daw {
 			return retrieve_value( m_variables, ::std::move( name ) );
 		}
 
+		void Basic::clear_program( ) {
+			m_program.clear( );
+			m_program.emplace_back( -1, "" );
+		}
+
+		void Basic::clear_variables( ) {
+			m_variables.clear( );
+		}
+
+		void Basic::reset( ) {
+			m_basic.reset( new Basic( ) );
+			clear_program( );
+			clear_variables( );
+		}
+
+		::std::string Basic::list_functions( ) {
+			::std::stringstream ss;
+			for( auto& current_function_name : get_keys( m_functions ) ) {
+				const auto& current_function = m_functions[current_function_name];
+				ss << current_function_name << ": " << current_function.description << "\n";
+			}
+			return ss.str( );
+		}
+
+		::std::string Basic::list_constants( ) {
+			::std::stringstream ss;
+			for( auto& current_constant_name : get_keys( m_constants ) ) {
+				const auto& current_constant = m_constants[current_constant_name];
+				ss << current_constant_name << " = " << to_string( current_constant.value ) << ": " << current_constant.description << "\n";
+			}
+			return ss.str( );
+		}
+
+		::std::string Basic::list_keywords( ) {
+			::std::stringstream ss;
+			for( auto& current_keyword_name : get_keys( m_keywords ) ) {
+				const auto& current_keyword = m_keywords[current_keyword_name];
+				ss << current_keyword_name << "\n"; // ": " << current_keyword.description << "\n";
+			}
+			return ss.str( );
+		}
+
+		::std::string Basic::list_variables( ) {
+			::std::stringstream ss;
+			for( auto& current_variable_name : get_keys( m_variables ) ) {
+				const auto& current_variable = m_variables[current_variable_name];
+				ss << current_variable_name << " = " << to_string( current_variable ) << "\n";
+			}
+			return ss.str( );
+		}
+
+		BasicValue Basic::exec_function( ::std::string name, ::std::vector<BasicValue> arguments ) {
+			return m_functions[::std::move( name )].func( ::std::move( arguments ) );
+		}
+
 		void Basic::init( ) {
+			//////////////////////////////////////////////////////////////////////////
+			// Binary Operators
+			//////////////////////////////////////////////////////////////////////////
 			m_binary_operators["*"] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				switch( result_type ) {
@@ -589,7 +664,7 @@ namespace daw {
 			};
 
 			m_binary_operators["^"] = [&]( BasicValue lhs, BasicValue rhs ) {
-				return m_functions["POW"]( { ::std::move( lhs ), ::std::move( rhs ) } );
+				return exec_function( "POW", { ::std::move( lhs ), ::std::move( rhs ) } );
 			};
 
 			m_binary_operators["%"] = []( BasicValue lhs, BasicValue rhs ) {
@@ -755,6 +830,10 @@ namespace daw {
 				return basic_value_boolean( to_boolean( lhs ) || to_boolean( rhs ) );
 			};
 
+			//////////////////////////////////////////////////////////////////////////
+			// Unary Operators
+			//////////////////////////////////////////////////////////////////////////
+			
 			m_unary_operators["NEG"] = []( BasicValue lhs ) {
 				if( ValueType::INTEGER == lhs.first ) {
 					return basic_value_integer( -to_integer( lhs ) );
@@ -764,69 +843,74 @@ namespace daw {
 				throw SyntaxException( "Attempt to apply a negative sign to a non-number" );
 			};
 
-
-			m_functions["COS"] = []( ::std::vector<BasicValue> value ) {
+			//////////////////////////////////////////////////////////////////////////
+			// Functions
+			//////////////////////////////////////////////////////////////////////////
+			// Mathematical
+			//////////////////////////////////////////////////////////////////////////
+			
+			add_function( "COS", "COS( Angle ) -> Returns the cosine of angle in radians", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "COS requires 1 parameter" );
 				}
 				return basic_value_real( cos( to_numeric( value[0] ) ) );
-			};
+			} );
 
-			m_functions["SIN"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "SIN", "SIN( Angle ) -> Returns the sine of angle in radians", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "SIN requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = sin( dbl_param );
 				return basic_value_real( ::std::move( result ) );
-			};
+			} );
 
-			m_functions["TAN"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "TAN", "TAN( Angle ) -> Returns the tangent of angle in radians", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "TAN requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = tan( dbl_param );
 				return basic_value_real( ::std::move( result ) );
-			};
+			} );
 
-			m_functions["ATN"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "ATN", "ATN( Angle ) -> Returns the arctangent of angle in radians", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "ATN requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = atan( dbl_param );
 				return basic_value_real( ::std::move( result ) );
-			};
+			} );
 
-			m_functions["EXP"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "EXP", "EXP( Exponent ) -> Resturn e raised to the power of exponent. Where e = 2.71828183...", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "EXP requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = exp( dbl_param );
 				return basic_value_real( ::std::move( result ) );
-			};
+			} );
 
-			m_functions["LOG"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "LOG", "LOG( x ) -> Returns the natural logarithm of x", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "LOG requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = log( dbl_param );
 				return basic_value_real( ::std::move( result ) );
-			};
+			} );
 
-			m_functions["SQR"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "SQR", "SQR( x ) -> Returns the square root of x", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "SQRT requires 1 parameter" );
 				}
 				auto dbl_param = to_numeric( value[0] );
 				auto result = sqrt( dbl_param );
 				return basic_value_real( ::std::move( result ) );
-			};
+			} );
 
-			m_functions["SQUARE"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "SQUARE", "SQUARE( x ) -> Returns x squared", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "SQR requires 1 parameter" );
 				}
@@ -839,9 +923,9 @@ namespace daw {
 					dbl_param *= dbl_param;
 					return basic_value_real( ::std::move( dbl_param ) );
 				}
-			};
+			} );
 
-			m_functions["ABS"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "ABS", "ABS( x ) -> Returns the absolute value of x", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "SIN requires 1 parameter" );
 				}
@@ -856,9 +940,9 @@ namespace daw {
 					auto result = abs( dbl_param );
 					return basic_value_real( ::std::move( result ) );
 				}
-			};
+			} );
 
-			m_functions["SGN"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "SGN", "SGN( x ) -> Returns the sign of x ( -1 for negative, 0 for 0, and 1 for positive)", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "SGN requires 1 parameter" );
 				}
@@ -874,9 +958,9 @@ namespace daw {
 					return basic_value_integer( static_cast<integer>(result) );
 				}
 				return basic_value_real( result );
-			};
+			} );
 
-			m_functions["INT"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "INT", "INT( x ) -> Returns x truncated to the greatest integer less or equal", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "INT requires 1 parameter" );
 				}
@@ -887,32 +971,31 @@ namespace daw {
 				auto result = to_real( value[0] );
 				result = round( result - 0.5 );
 				return basic_value_integer( static_cast<integer>(result) );
-			};
+			} );
 
-			m_functions["RND"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "RND", "RND( [s] ) -> Returns a random number between 0.0 and 1.0.  An optional seed can be specified", []( ::std::vector<BasicValue> value ) -> BasicValue {
 				if( 1 >= value.size( ) ) {
 					throw SyntaxException( "INT requires 1 or 0 parameters" );
 				}
-				if( ValueType::INTEGER == value[0].first ) {
-					return value[0];
-				}
+				throw SyntaxException( "Not implemented" );
+// 				if( ValueType::INTEGER == value[0].first ) {
+// 					return value[0];
+// 				}
+// 
+// 				auto result = to_real( value[0] );
+// 				result = round( result - 0.5 );
+// 				return basic_value_integer( static_cast<integer>(result) );
+			} );
 
-				auto result = to_real( value[0] );
-				result = round( result - 0.5 );
-				return basic_value_integer( static_cast<integer>(result) );
-			};
-
-
-			m_functions["NEG"] = [&]( ::std::vector<BasicValue> values ) {
+			add_function( "NEG", "NEG( x ) -> Returns the negated number", [&]( ::std::vector<BasicValue> values ) {
 				if( 1 != values.size( ) ) {
 					throw SyntaxException( "NEG requires 1 parameter" );
 				}
 				const BasicValue zero = basic_value_integer( 0 );
 				return m_binary_operators["-"]( zero, values[0] );
-			};
+			} );
 
-
-			m_functions["POW"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "POW", "POW( base, exponent ) -> Returns base raised to the power exponent", []( ::std::vector<BasicValue> value ) {
 				if( 2 != value.size( ) ) {
 					throw SyntaxException( "POW requires 2 parameters" );
 				}
@@ -925,19 +1008,145 @@ namespace daw {
 					auto result = pow( to_numeric( value[0] ), to_numeric( value[1] ) );
 					return basic_value_real( ::std::move( result ) );
 				}
-			};
+			} );
+			//////////////////////////////////////////////////////////////////////////
+			// Logical
+			//////////////////////////////////////////////////////////////////////////
 
-			m_functions["NOT"] = []( ::std::vector<BasicValue> value ) {
+			add_function( "NOT", "Boolean negation", []( ::std::vector<BasicValue> value ) {
 				if( 1 != value.size( ) ) {
 					throw SyntaxException( "NOT requires 1 parameter" );
 				} 
 				return basic_value_boolean( !to_boolean( value[0] ) );
+			} );
+
+			//////////////////////////////////////////////////////////////////////////
+			// Character and String Processing
+			//////////////////////////////////////////////////////////////////////////
+
+			add_function( "LEN", "LEN( s ) -> Returns the length of string s", []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "LEN requires 1 parameter" );
+				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
+					throw SyntaxException( "LEN only works on string data" );
+				}
+				auto str_value = to_string( value[0] );
+				return basic_value_integer( str_value.size( ) );
+			} );
+
+			add_function( "LEFT$", "LEFT$( string, len ) -> Returns the left side of the string up to len characters long", []( ::std::vector<BasicValue> value ) {
+				if( 2 != value.size( ) ) {
+					throw SyntaxException( "LEFT$ requires 2 parameters" );
+				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
+					throw SyntaxException( "The first parameter of LEFT$ must be a string" );
+				} else if( ValueType::INTEGER != get_value_type( value[1] ) ) {
+					throw SyntaxException( "The second parameter of LEFT$ must be an integer" );
+				}
+				auto len = to_integer( value[1] );
+				if( 0 > len ) {
+					throw SyntaxException( "The len parameter of LEFT$ must be positive" );
+				}
+				return basic_value_string( to_string( value[0] ).substr( 0, ::std::move( len ) ) );
+			} );
+
+			add_function( "RIGHT$", "RIGHT$( string, len ) -> Returns the right side of the string up to len characters long", []( ::std::vector<BasicValue> value ) {
+				if( 2 != value.size( ) ) {
+					throw SyntaxException( "RIGHT$ requires 2 parameters" );
+				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
+					throw SyntaxException( "The first parameter of RIGHT$ must be a string" );
+				} else if( ValueType::INTEGER != get_value_type( value[1] ) ) {
+					throw SyntaxException( "The second parameter of RIGHT$ must be an integer" );
+				}
+				auto str_value = to_string( value[0] );
+				auto start = to_integer( value[1] );
+				if( 0 > start ) {
+					throw SyntaxException( "The len parameter of RIGHT$ must be positive" );
+				}
+				start = str_value.size( ) - start;
+				return basic_value_string( str_value.substr( start ) );
+			} );
+
+			add_function( "MID$", "MID$( string, start, len ) -> Returns the middle of the string from start up to len characters long", []( ::std::vector<BasicValue> value ) {
+				if( 3 != value.size( ) ) {
+					throw SyntaxException( "MID$ requires 3 parameters" );
+				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
+					throw SyntaxException( "The first parameter of MID$ must be a string" );
+				} else if( ValueType::INTEGER != get_value_type( value[1] ) || ValueType::INTEGER != get_value_type( value[2] ) ) {
+					throw SyntaxException( "The parameters start and len of MID$ must be an integer" );
+				}
+
+				auto start = to_integer( ::std::move( value[1] ) );
+				if( 1 > start ) {
+					throw SyntaxException( "The start parameter of MID$ must be greater than zero" );
+				}
+				--start;	// BASIC arrays start at 1
+				auto len = to_integer( ::std::move( value[2] ) );
+				if( 1 > len ) {
+					throw SyntaxException( "The len parameter of MID$ must be positive" );
+				}
+				return basic_value_string( to_string( ::std::move( value[0] ) ).substr( start, len ) );
+			} );
+
+			add_function( "STR$", "STR$( x ) -> Converts a number to a string", []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "STR$ requires 1 parameter" );
+				} else if( ValueType::INTEGER != get_value_type( value[0] ) && ValueType::REAL != get_value_type( value[0] ) ) {
+					throw SyntaxException( "STR$ only works on numeric data" );
+				}
+				return basic_value_string( to_string( ::std::move( value[0] ) ) );
+			} );
+			
+			add_function( "VAL", "VAL( s ) -> Converts a string to a number", []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "VAL requires 1 parameter" );
+				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
+					throw SyntaxException( "VAL only works on string data" );
+				}
+				auto str_value = to_string( value[0] );
+				switch( get_value_type( str_value ) ) {
+				case ValueType::INTEGER:
+					return basic_value_integer( to_integer( ::std::move( str_value ) ) );
+				case ValueType::REAL:
+					return basic_value_real( to_real( ::std::move( str_value ) ) );
+				}
+				throw SyntaxException( "Attempt to convert a string of non-numbers to a number" );
+			} );
+
+			add_function( "ASC", "ASC( s ) -> Returns the ASCII code of the first character of a string", []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "ASC requires 1 parameter" );
+				} else if( ValueType::STRING != get_value_type( value[0] ) ) {
+					throw SyntaxException( "ASC only works on string data" );
+				}
+				auto chr_value = to_string( value[0] )[0];
+				return basic_value_integer( static_cast<integer>(chr_value) );
+ 			} );
+
+			add_function( "CHR$", "CHR$( x ) -> Returns a string with the character of the specified ASCII code", []( ::std::vector<BasicValue> value ) {
+				if( 1 != value.size( ) ) {
+					throw SyntaxException( "CHR$ requires 1 parameter" );
+				} else if( ValueType::INTEGER != get_value_type( value[0] ) ) {
+					throw SyntaxException( "CHR$ only works on integer data" );
+				}
+				auto ascii_code = to_integer( value[0] );
+				if( 0 > ascii_code || 255 < ascii_code ) {
+					throw SyntaxException( "Specified ASCII code must be between 0 and 255 inclusive" );
+				}
+				return basic_value_string( char_to_string( static_cast<char>(ascii_code) ) );
+			} );
+
+			//////////////////////////////////////////////////////////////////////////
+			// Keywords
+			//////////////////////////////////////////////////////////////////////////
+
+			m_keywords["NEW"] = [&]( ::std::string parse_string )-> bool {
+				reset( );				
+				return true;
 			};
 
-
-			m_keywords["DELETE"] = [&]( ::std::string parse_string )-> bool {
+			m_keywords["CLR"] = [&]( ::std::string parse_string )-> bool {
 				if( parse_string.empty( ) ) {
-					m_variables.clear( );
+					clear_variables( );
 				} else {
 					remove_variable( parse_string );
 				}
@@ -968,6 +1177,23 @@ namespace daw {
 				return true;
 			};
 
+			m_keywords["STOP"] = [&]( ::std::string ) -> bool {
+				if( RunMode::IMMEDIATE == m_run_mode ) {
+					throw SyntaxException( "Attempt to STOP from outside a program" );
+				}
+				::std::cout << "BREAK IN " << m_program_it->first << ::std::endl;
+				m_exiting = true;
+				return true;
+			};
+
+			m_keywords["CONT"] = [&]( ::std::string ) -> bool {
+				if( RunMode::PROGRAM == m_run_mode ) {
+					throw SyntaxException( "Attempt to CONT from inside a program" );
+				}
+				m_basic->m_run_mode = RunMode::PROGRAM;
+				return m_basic->continue_run( );
+			};
+
 			m_keywords["GOTO"] = [&]( ::std::string parse_string ) -> bool {
 				if( RunMode::IMMEDIATE == m_run_mode ) {
 					throw SyntaxException( "Attempt to GOTO from outside a program" );
@@ -978,12 +1204,7 @@ namespace daw {
 						throw SyntaxException( "Can only GOTO line numbers" );
 					}
 				}
-				auto line_number = to_integer( parse_string );
-				auto line_it = ::std::begin( m_program ) + ::std::distance( ::std::begin( m_program ), find_line( line_number ) ) - 1;
-				if( ::std::end( m_program ) == line_it ) {
-					throw SyntaxException( "Attempt to GOTO a non-existent line" );
-				}
-				m_program_it = line_it;
+				set_program_it( to_integer( parse_string ), -1 );
 				return true;
 			};
 
@@ -1004,17 +1225,11 @@ namespace daw {
 					throw SyntaxException( "Attempt to RETURN without a preceding GOSUB" );
 				}
 
-				auto line_number = pop( m_program_stack )->first;
-				auto line_it = ::std::begin( m_program ) + ::std::distance( ::std::begin( m_program ), find_line( line_number ) );
-				if( ::std::end( m_program ) == line_it ) {
-					throw SyntaxException( "Attempt to GOTO a non-existent line" );
-				}
-				m_program_it = line_it;
+				set_program_it( pop( m_program_stack )->first );
 				return true;
 
 			};
 			
-
 			m_keywords["PRINT"] = [&]( ::std::string parse_string ) mutable -> bool {
 				boost::algorithm::trim( parse_string );
 				if( parse_string.empty( ) ) {
@@ -1037,15 +1252,21 @@ namespace daw {
 				return true;
 			};
 
+			m_keywords["END"] = [&]( ::std::string ) -> bool {
+				if( RunMode::IMMEDIATE == m_run_mode ) {
+					throw SyntaxException( "Attempt to END from outside a program" );
+				}
+				m_exiting = true;
+				return true;
+			};
+
 			m_keywords["REM"] = []( ::std::string ) -> bool {
 				// truly do nothing
 				return true;
 			};
 
 			m_keywords["LIST"] = [&]( ::std::string ) -> bool {
-				::std::sort( ::std::begin( m_program ), ::std::end( m_program ), []( ProgramLine a, ProgramLine b ) {
-					return a.first < b.first;
-				} );
+				sort_program_code( );
 				for( auto& current_line : m_program ) {
 					if( 0 <= current_line.first ) {
 						::std::cout << current_line.first << "	" << current_line.second << "\n";
@@ -1055,38 +1276,34 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["RUN"] = [&]( ::std::string ) -> bool {
-				::std::sort( ::std::begin( m_program ), ::std::end( m_program ), []( ProgramLine a, ProgramLine b ) {
-					return a.first < b.first;
-				} );
-				Basic b;
-				b.m_run_mode = RunMode::PROGRAM;
-				b.m_program = m_program;
-				return b.run( );
+			m_keywords["RUN"] = [&]( ::std::string parse_line ) -> bool {
+				sort_program_code( );
+				integer line_number = -1;
+				if( !parse_line.empty( ) && ValueType::INTEGER == get_value_type( parse_line ) ) {
+					line_number = to_integer( parse_line );
+				}
+				if( !m_basic || 0 <= line_number ) {
+					m_basic.reset( new Basic( ) );
+				}
+				m_basic->m_run_mode = RunMode::PROGRAM;
+				m_basic->m_program = m_program;
+				return m_basic->run( line_number );
 			};
 
 			m_keywords["VARS"] = [&]( ::std::string ) -> bool {
-				::std::cout << m_variables.size( ) + m_constants.size( ) << " variable(s) in use\n";
-				::std::cout << "Constants:\n";
-				for( auto it = m_constants.begin( ); it != m_constants.end( ); ++it ) {
-					const auto value = it->second;
-					::std::cout << it->first << ": " << value_type_string( value.first ) << ": " << to_string( value ) << ::std::endl;
-				}
-				::std::cout << "\nVariables:\n";
-				for( auto it = m_variables.begin( ); it != m_variables.end( ); ++it ) {
-					const auto value = it->second;
-					::std::cout << it->first << ": " << value_type_string( value.first ) << ": " << to_string( value ) << ::std::endl;
-				}
+				::std::cout << "Constants:\n" << list_constants( ) << "\n";
+				::std::cout << "\nVariables:\n" << list_variables( ) << "\n";
 				return true;
 			};
 
 			m_keywords["FUNCTIONS"] = [&]( ::std::string ) -> bool {
-				auto funcs = get_keys( m_functions );
-				for( auto& func : get_keys( m_functions ) ) {
-					::std::cout << func << ::std::endl;
-				}
+				::std::cout << list_functions( ) << std::endl;
 				return true;
+			};
 
+			m_keywords["KEYWORDS"] = [&]( ::std::string ) -> bool {
+				::std::cout << list_keywords( ) << std::endl;
+				return true;
 			};
 
 			m_keywords["THEN"] = []( std::string ) -> bool {
@@ -1121,11 +1338,15 @@ namespace daw {
 				return true;
 			};
 
-			add_constant( "TRUE", basic_value_boolean( true ) );
-			add_constant( "FALSE", basic_value_boolean( false ) );
-			add_constant( "PI", basic_value_real( boost::math::constants::pi<real>( ) ) );
+			//////////////////////////////////////////////////////////////////////////
+			// Constants
+			//////////////////////////////////////////////////////////////////////////
+			
+			add_constant( "TRUE","", basic_value_boolean( true ) );
+			add_constant( "FALSE", "", basic_value_boolean( false ) );
+			add_constant( "PI", "Trigometric Pi value", basic_value_real( boost::math::constants::pi<real>( ) ) );
 
-			m_program.emplace_back( -1, "" );
+			clear_program( );			
 		}
 
 		//////////////////////////////////////////////////////////////////////////
@@ -1134,12 +1355,6 @@ namespace daw {
 			auto current_position = 0;
 			::std::vector<BasicValue> operand_stack;
 			::std::vector<::std::string> operator_stack;
-
-			const auto char_to_string = []( char chr ) {
-				::std::string result( " " );
-				result[0] = chr;
-				return ::std::move( result );
-			};
 
 			const auto is_higher_precedence = [&operator_stack]( std::string oper ) {
 				if( operator_stack.empty( ) ) {
@@ -1188,7 +1403,7 @@ namespace daw {
 					current_operand = current_operand.substr( 0, end_of_string + 1 );
 					current_operand = remove_outer_quotes( current_operand );
 					replace_all( current_operand, "\\\"", "\"" );
-					operand_stack.push_back( basic_value_string( ::std::move( current_operand ) ) );
+					operand_stack.push_back( basic_value_string( remove_outer_quotes( current_operand ) ) );
 					current_position += end_of_string;
 				}
 					break;
@@ -1298,7 +1513,7 @@ namespace daw {
 						}
 						auto param_string = current_operand.substr( first_bracket + 1, current_operand.size( ) - first_bracket - 2 );
 						auto function_parameters = evaluate_parameters( param_string );
-						operand_stack.push_back( m_functions[function_name]( function_parameters ) );
+						operand_stack.push_back( exec_function( function_name, function_parameters ) );
 					} else if( is_variable( current_operand_upper ) ) {
 						// We are a variable, push value onto stack
 						operand_stack.emplace_back( get_variable_constant( current_operand_upper ) );
@@ -1346,11 +1561,43 @@ namespace daw {
 			return current_operand;
 		}
 
-		bool Basic::run( ) {
+		void Basic::sort_program_code( ) {
+			::std::sort( ::std::begin( m_program ), ::std::end( m_program ), []( ProgramLine a, ProgramLine b ) {
+				return a.first < b.first;
+			} );
+		}
+
+		void Basic::set_program_it( integer line_number, integer offset ) {
+			sort_program_code( );
+			auto line_it = ::std::begin( m_program ) + ::std::distance( ::std::begin( m_program ), find_line( line_number ) + offset );
+			if( ::std::end( m_program ) == line_it ) {
+				throw SyntaxException( "Attempt to jump to an invalid line" );
+			}
+			m_program_it = line_it;
+		}
+
+		bool Basic::continue_run( ) {
+			auto next_line = m_program_it + 1;
+			if( ::std::end( m_program ) == next_line ) {
+				throw SyntaxException( "Cannot continue.  End of program reached" );
+			}
+			return run( next_line->first );
+		}
+
+		ProgramType::iterator Basic::first_line( ) {
+			return ::std::begin( m_program ) + 1;
+		}
+
+		bool Basic::run( integer line_number ) {
 			m_has_syntax_error = false;
-			for( m_program_it = ::std::begin( m_program ); m_program_it != ::std::end( m_program ); ++m_program_it ) {
+			if( 0 <= line_number ) {
+				set_program_it( line_number );
+			} else {				
+				m_program_it = first_line( );
+			}
+			while( m_program_it != ::std::end( m_program ) ) {
 				if( 0 <= m_program_it->first ) {
-					add_constant( "CURRENT_LINE", basic_value_integer( m_program_it->first ) );
+					add_constant( "CURRENT_LINE", "Current Line of program execution", basic_value_integer( m_program_it->first ) );
 					if( !parse_line( m_program_it->second ) ) {
 						return false;
 					}
@@ -1363,12 +1610,13 @@ namespace daw {
 						m_exiting = false;
 						break;
 					}
+					++m_program_it;
 				}
 			}
 			return true;
 		}
 
-		Basic::Basic( ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( ::std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ) {
+		Basic::Basic( ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( ::std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {
 			init( );
 		}
 
