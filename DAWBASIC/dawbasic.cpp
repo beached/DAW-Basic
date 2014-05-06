@@ -35,14 +35,14 @@ namespace daw {
 					return 5;
 				} else if( ">" == oper || ">=" == oper || "<" == oper || "<=" == oper ) {
 					return 6;
-				} else if( "==" == oper ) {
+				} else if( "=" == oper ) {
 					return 7;
 				} else if( "AND" == oper ) {
 					return 8;
 				} else if( "OR" == oper ) {
 					return 9;
 				}
-				throw ::std::runtime_error( "Unknown operator" );
+				throw ::std::runtime_error( "Unknown operator passed to operator_rank" );
 			}
 
 			const BasicValue EMPTY_BASIC_VALUE{ ValueType::EMPTY, boost::any( ) };
@@ -51,9 +51,11 @@ namespace daw {
 				return ::std::move( value.first );
 			}
 
-			ValueType get_value_type( const ::std::string& value, ::std::string locale_str = "" ) {
+			ValueType get_value_type( ::std::string value, ::std::string locale_str = "", bool trim_ws = true ) {
 				// DAW erase
-
+				if( trim_ws ) {
+					value = boost::algorithm::trim_copy( value );
+				}
 				if( value.empty( ) ) {
 					return ValueType::EMPTY;
 				}
@@ -690,7 +692,7 @@ namespace daw {
 				}
 			};
 
-			m_binary_operators["=="] = []( BasicValue lhs, BasicValue rhs ) {
+			m_binary_operators["="] = []( BasicValue lhs, BasicValue rhs ) {
 				auto result_type = determine_result_type( lhs.first, rhs.first );
 				boolean result = false;
 				switch( result_type ) {
@@ -1212,10 +1214,10 @@ namespace daw {
 			};
 
 			m_keywords["CONT"] = [&]( ::std::string ) -> bool {
-				if( RunMode::PROGRAM == m_run_mode ) {
+				if( RunMode::DEFERRED == m_run_mode ) {
 					throw SyntaxException( "Attempt to CONT from inside a program" );
 				}
-				m_basic->m_run_mode = RunMode::PROGRAM;
+				m_basic->m_run_mode = RunMode::DEFERRED;
 				return m_basic->continue_run( );
 			};
 
@@ -1310,7 +1312,7 @@ namespace daw {
 				if( !m_basic || 0 <= line_number ) {
 					m_basic.reset( new Basic( ) );
 				}
-				m_basic->m_run_mode = RunMode::PROGRAM;
+				m_basic->m_run_mode = RunMode::DEFERRED;
 				m_basic->m_program = m_program;
 				return m_basic->run( line_number );
 			};
@@ -1335,31 +1337,77 @@ namespace daw {
 				throw SyntaxException( "THEN is invalid without a preceeding IF and condition" );
 			};
 
-			m_keywords["IF"] = [&]( ::std::string parse_string ) -> bool {
-				if( RunMode::IMMEDIATE == m_run_mode ) {
-					throw SyntaxException( "Attempt to IF from outside a program" );
-				}
-				// IF <condition> <THEN [GOTO] <LINE NUMBER>>
+// 			m_keywords["IF"] = [&]( ::std::string parse_string ) -> bool {
+// 				if( RunMode::IMMEDIATE == m_run_mode ) {
+// 					throw SyntaxException( "Attempt to IF from outside a program" );
+// 				}
+// 				// IF <condition> <THEN [GOTO] <LINE NUMBER>>
+// 
+// 				// Verify that last token is an integer
+// 				auto then_pos = boost::algorithm::to_upper_copy( parse_string ).find( "THEN" );
+// 				if( ::std::string::npos == then_pos ) {
+// 					throw SyntaxException( "IF keyword must have a THEN clause" );
+// 				}
+// 				// Evaluate condition
+// 				auto condition = evaluate( parse_string.substr( 0, then_pos ) );
+// 				if( to_boolean( condition ) ) {
+// 					::std::string goto_clause = parse_string.substr( then_pos + 4 );
+// 					auto goto_pos = boost::algorithm::to_upper_copy( goto_clause ).find( "GOTO" );
+// 					if( ::std::string::npos != goto_pos ) {
+// 						goto_clause = goto_clause.substr( goto_pos + 4 );
+// 					}
+// 					goto_clause = boost::algorithm::trim_copy( goto_clause );
+// 					if( ValueType::INTEGER != get_value_type( goto_clause ) ) {
+// 						throw SyntaxException( "Error parsing IF after the THEN" );
+// 					}
+// 					return m_keywords["GOTO"]( goto_clause );
+// 				}
+// 				return true;
+// 			};
 
-				// Verify that last token is an integer
-				auto then_pos = boost::algorithm::to_upper_copy( parse_string ).find( "THEN" );
-				if( ::std::string::npos == then_pos ) {
-					throw SyntaxException( "IF keyword must have a THEN clause" );
-				}
-				// Evaluate condition
-				auto condition = evaluate( parse_string.substr( 0, then_pos ) );
-				if( to_boolean( condition ) ) {
-					::std::string goto_clause = parse_string.substr( then_pos + 4 );
-					auto goto_pos = boost::algorithm::to_upper_copy( goto_clause ).find( "GOTO" );
-					if( ::std::string::npos != goto_pos ) {
-						goto_clause = goto_clause.substr( goto_pos + 4 );
+			m_keywords["IF"] = [&]( ::std::string parse_string ) -> bool {
+				// IF <CONDITION> THEN <statement>
+				// IF <CONDITION> THEN <line_number>
+				// IF <CONDITION> GOTO <line_number>
+				
+				// Find end of condition
+				integer start_of_thengoto_clause = ::std::string::npos;
+				{
+					auto is_then_goto = [&]( int32_t pos ) -> bool {
+						const ::std::vector<::std::string> strings_to_find{ "THEN", "GOTO" };
+						for( auto& string_to_find : strings_to_find ) {
+							if( pos + static_cast<int32_t>( string_to_find.size( ) ) < parse_string[pos] ) {
+								auto current_string = boost::algorithm::to_upper_copy( parse_string.substr( pos, string_to_find.size( ) ) );
+								return string_to_find == current_string;
+							}
+						}
+						return false;
+					};
+
+					for( int32_t pos = 0; pos < static_cast<int32_t>( parse_string.size( ) ); ++pos ) {
+						const auto current_char = parse_string[pos];
+						if( '"' == current_char ) {
+							pos += find_end_of_string( parse_string.substr( pos ) );
+						} else if( '(' == current_char ) {
+							pos += find_end_of_bracket( parse_string.substr( pos ) );
+						} else if( is_then_goto( pos ) ) {
+							start_of_thengoto_clause = pos;
+							break;
+						}
 					}
-					goto_clause = boost::algorithm::trim_copy( goto_clause );
-					if( ValueType::INTEGER != get_value_type( goto_clause ) ) {
-						throw SyntaxException( "Error parsing IF after the THEN" );
+					if( ::std::string::npos == start_of_thengoto_clause ) {
+						throw SyntaxException( "Unable to find end of condition in IF keyword" );
 					}
-					return m_keywords["GOTO"]( goto_clause );
 				}
+				std::string condition = parse_string.substr( 0, start_of_thengoto_clause );
+				if( to_boolean( evaluate( condition ) ) ) {
+					auto str_action = parse_string.substr( start_of_thengoto_clause + 4 );
+					if( ValueType::INTEGER == get_value_type( str_action ) ) {
+						str_action = "GOTO " + str_action;
+					}
+					return parse_line( str_action );				
+				}
+				// Do nothing
 				return true;
 			};
 
@@ -1370,6 +1418,7 @@ namespace daw {
 			add_constant( "TRUE","", basic_value_boolean( true ) );
 			add_constant( "FALSE", "", basic_value_boolean( false ) );
 			add_constant( "PI", "Trigometric Pi value", basic_value_real( boost::math::constants::pi<real>( ) ) );
+
 
 			clear_program( );			
 		}
@@ -1480,7 +1529,7 @@ namespace daw {
 							current_operator = "NEG";
 						}
 					}					
-					if( '>' == current_char || '<' == current_char || '=' == current_char ) {
+					if( '>' == current_char || '<' == current_char ) {
 						if( current_position >= end ) {
 							throw SyntaxException( "Binary operator with only left hand side, not right" );
 						}

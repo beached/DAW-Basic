@@ -52,7 +52,7 @@ namespace daw {
 			::std::map<::std::string, BasicBinaryOperand> m_binary_operators;
 			::std::map<::std::string, BasicUnaryOperand> m_unary_operators;
 			::std::vector<BasicValue> evaluate_parameters( ::std::string value );
-			enum class RunMode { IMMEDIATE, PROGRAM };
+			enum class RunMode { IMMEDIATE, DEFERRED };
 			RunMode m_run_mode;
 			ProgramType::iterator m_program_it;
 			::std::vector<ProgramType::iterator> m_program_stack;	// GOSUB/RETURN
