@@ -100,7 +100,7 @@ namespace daw {
 			bool is_function( ::std::string name );
 			bool is_symbol( ::std::string name );
 
-			bool parse_line( const ::std::string& parse_string );
+			bool parse_line( const ::std::string& parse_string, bool show_ready = true );
 		};
 	}
 }

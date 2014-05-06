@@ -1711,7 +1711,7 @@ namespace daw {
 
 		}
 
-		bool Basic::parse_line( const ::std::string& parse_string ) {
+		bool Basic::parse_line( const ::std::string& parse_string, bool show_ready ) {
 			m_exiting = false;
 			const auto parsed_string( parse_left( parse_string ) );
 			try {
@@ -1734,14 +1734,18 @@ namespace daw {
 					}
 					auto keyword = boost::algorithm::to_upper_copy( parsed_string[0] );
 					if( !is_keyword( keyword ) ) {
-						throw SyntaxException( "Invalid keyword '" + keyword + "'" );
+						// Try assignment if the above fails
+						try {
+							return parse_line( "LET " + parse_string, false );
+						} catch(...) { }						
+						throw SyntaxException( "Invalid keyword '" + keyword + "'" );						
 					}
 					auto result = m_keywords[keyword]( params );
 					if( m_exiting ) {
 						return m_run_mode != RunMode::IMMEDIATE;
 					}
 
-					if( result && RunMode::IMMEDIATE == m_run_mode ) {
+					if( show_ready && result && RunMode::IMMEDIATE == m_run_mode ) {
 						::std::cout << "\nREADY" << ::std::endl;
 					}
 					return result;
