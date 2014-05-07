@@ -14,6 +14,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 
 namespace daw {
@@ -305,6 +306,13 @@ namespace daw {
 				return kv_map[key];
 			}
 
+			template<typename K, typename V>
+			V& retrieve_value( ::std::unordered_map<K, V>& kv_map, K key ) {
+				boost::algorithm::to_upper( key );
+				return kv_map[key];
+			}
+
+
 			template<typename V>
 			V pop( ::std::vector<V>& vect ) {
 				auto result = *vect.rbegin( );
@@ -586,7 +594,9 @@ namespace daw {
 
 		::std::string Basic::list_functions( ) {
 			::std::stringstream ss;
-			for( auto& current_function_name : get_keys( m_functions ) ) {
+			auto keys = get_keys( m_functions );
+			::std::sort( ::std::begin( keys ), ::std::end( keys ) );
+			for( auto& current_function_name : keys ) {
 				const auto& current_function = m_functions[current_function_name];
 				ss << current_function_name << ": " << current_function.description << "\n";
 			}
@@ -595,7 +605,9 @@ namespace daw {
 
 		::std::string Basic::list_constants( ) {
 			::std::stringstream ss;
-			for( auto& current_constant_name : get_keys( m_constants ) ) {
+			auto keys = get_keys( m_constants );
+			::std::sort( ::std::begin( keys ), ::std::end( keys ) );
+			for( auto& current_constant_name : keys ) {
 				const auto& current_constant = m_constants[current_constant_name];
 				ss << current_constant_name << ": " << value_type_string( current_constant.value ) << " = " << to_string( current_constant.value ) << ": " << current_constant.description << "\n";
 			}
@@ -604,7 +616,9 @@ namespace daw {
 
 		::std::string Basic::list_keywords( ) {
 			::std::stringstream ss;
-			for( auto& current_keyword_name : get_keys( m_keywords ) ) {
+			auto keys = get_keys( m_keywords );
+			::std::sort( ::std::begin( keys ), ::std::end( keys ) );
+			for( auto& current_keyword_name : keys ) {
 				const auto& current_keyword = m_keywords[current_keyword_name];
 				ss << current_keyword_name << "\n"; // ": " << current_keyword.description << "\n";
 			}
@@ -613,7 +627,9 @@ namespace daw {
 
 		::std::string Basic::list_variables( ) {
 			::std::stringstream ss;
-			for( auto& current_variable_name : get_keys( m_variables ) ) {
+			auto keys = get_keys( m_variables );
+			::std::sort( ::std::begin( keys ), ::std::end( keys ) );
+			for( auto& current_variable_name : keys ) {
 				const auto& current_variable = m_variables[current_variable_name];
 				ss << current_variable_name << ": " << value_type_string( current_variable ) << " = " << to_string( current_variable ) << "\n";
 			}

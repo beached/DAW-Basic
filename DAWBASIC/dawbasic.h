@@ -9,6 +9,7 @@
 #include <vector>
 #include <list>
 #include <memory>
+#include <unordered_map>
 
 
 namespace daw {
@@ -51,13 +52,13 @@ namespace daw {
 
 			BasicValue evaluate( ::std::string value );
 
-			::std::map<::std::string, FunctionType> m_functions;
-			::std::map <::std::string, BasicValue> m_variables;
-			::std::map <::std::string, ConstantType> m_constants;
-			::std::map<::std::string, ::std::function<bool( ::std::string )>> m_keywords;
+			::std::unordered_map<::std::string, FunctionType> m_functions;
+			::std::unordered_map <::std::string, BasicValue> m_variables;
+			::std::unordered_map <::std::string, ConstantType> m_constants;
+			::std::unordered_map<::std::string, ::std::function<bool( ::std::string )>> m_keywords;
 			ProgramType m_program;
-			::std::map<::std::string, BasicBinaryOperand> m_binary_operators;
-			::std::map<::std::string, BasicUnaryOperand> m_unary_operators;
+			::std::unordered_map<::std::string, BasicBinaryOperand> m_binary_operators;
+			::std::unordered_map<::std::string, BasicUnaryOperand> m_unary_operators;
 			::std::vector<BasicValue> evaluate_parameters( ::std::string value );
 			enum class RunMode { IMMEDIATE, DEFERRED };
 			RunMode m_run_mode;
