@@ -10,6 +10,7 @@
 #include <list>
 #include <memory>
 #include <unordered_map>
+#include <array>
 
 
 namespace daw {
@@ -20,20 +21,33 @@ namespace daw {
 			explicit BasicException( const char* msg ): runtime_error( msg ) { }
 		};
 
-		enum class ValueType { EMPTY, STRING, INTEGER, REAL, BOOLEAN, STRINGARRAY, INTEGERARRAY, REALARRAY, BOOLEANARRAY };
+		enum class ValueType { EMPTY, STRING, INTEGER, REAL, BOOLEAN, ARRAY };
 		typedef int32_t integer;
 		typedef double real;
 		typedef bool boolean;
 
 		typedef ::std::pair<ValueType, boost::any> BasicValue;
+		
 		typedef ::std::function<bool( ::std::string )> BasicKeyword;
 		typedef ::std::function<BasicValue( ::std::vector<BasicValue> )> BasicFunction;
-		typedef ::std::function < BasicValue( BasicValue, BasicValue )> BasicBinaryOperand;
-		typedef ::std::function < BasicValue( BasicValue )> BasicUnaryOperand;
+		typedef ::std::function<BasicValue( BasicValue, BasicValue )> BasicBinaryOperand;
+		typedef ::std::function<BasicValue( BasicValue )> BasicUnaryOperand;
 		typedef ::std::pair<integer, ::std::string> ProgramLine;
 		typedef ::std::vector<ProgramLine> ProgramType;
 
 		enum class ErrorTypes { SYNTAX };		
+
+		class BasicArray {
+		private:
+			const size_t dim_2;
+			::std::vector<BasicValue> values;
+		public:
+			BasicArray( size_t Dim_1, size_t Dim_2 = 0 );
+			BasicValue& operator() ( size_t Dim_1, size_t Dim_2 = 0 );
+			const BasicValue& operator() ( size_t Dim_1, size_t Dim_2 = 0 ) const;
+			::std::pair<size_t, size_t> dimensions( ) const;
+			size_t size( ) const;
+		};
 
 		class Basic {
 		private:
@@ -67,6 +81,7 @@ namespace daw {
 			ProgramType::iterator find_line( integer line_number );
 
 			static ::std::vector<::std::string> split( ::std::string text, ::std::string delimiter );
+			static ::std::vector<::std::string> split( ::std::string text, char delimiter );
 			BasicValue& get_variable( ::std::string name );
 			bool is_unary_operator( ::std::string oper );
 			bool is_binary_operator( ::std::string oper );

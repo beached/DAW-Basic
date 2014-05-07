@@ -31,7 +31,7 @@ namespace daw {
 				}
 				throw ::std::runtime_error( "Unknown error type tried to be thrown" );
 			}
-
+	
 			integer operator_rank( ::std::string oper ) {
 				if( "NEG" == oper ) {
 					return 1;
@@ -119,6 +119,10 @@ namespace daw {
 				return result;
 			}
 
+			BasicArray to_array( BasicValue values ) {
+				return boost::any_cast<BasicArray>(values.second);
+			}
+
 			integer to_integer( BasicValue value ) {
 				return boost::any_cast<integer>(value.second);
 			}
@@ -185,9 +189,8 @@ namespace daw {
 				return BasicValue{ ValueType::STRING, boost::any( ::std::move( value ) ) };
 			}
 
-			BasicValue basic_value_string_array( ::std::vector<::std::string> values ) {
-				throw CreateError( ErrorTypes::SYNTAX, "Not implemented" );
-				//return BasicValue{ ValueType::STRINGARRAY, boost::any( ::std::move( values ) ) };
+			BasicValue basic_value_array( BasicArray array ) {
+				return BasicValue{ ValueType::ARRAY, boost::any( ::std::move( array ) ) };
 			}
 
 			::std::string to_string( integer value ) {
@@ -217,6 +220,8 @@ namespace daw {
 						ss << "FALSE";
 					}
 					break;
+				case ValueType::ARRAY: 
+				break;
 				default:
 					throw ::std::runtime_error( "Unknown ValueType" );
 				}
@@ -236,22 +241,16 @@ namespace daw {
 				switch( value_type ) {
 				case ValueType::BOOLEAN:
 					return "Boolean";
-				case ValueType::BOOLEANARRAY:
-					return "Boolean Array";
 				case ValueType::EMPTY:
 					return "Empty";
 				case ValueType::INTEGER:
 					return "Integer";
-				case ValueType::INTEGERARRAY:
-					return "Integer Array";
 				case ValueType::REAL:
 					return "Real";
-				case ValueType::REALARRAY:
-					return "Real Array";
+				case ValueType::ARRAY:
+					return "Array";
 				case ValueType::STRING:
 					return "String";
-				case ValueType::STRINGARRAY:
-					return "String Array";
 				}
 				throw ::std::runtime_error( "Unknown ValueType" );
 			}
@@ -312,7 +311,6 @@ namespace daw {
 				return kv_map[key];
 			}
 
-
 			template<typename V>
 			V pop( ::std::vector<V>& vect ) {
 				auto result = *vect.rbegin( );
@@ -360,7 +358,12 @@ namespace daw {
 
 			int32_t find_end_of_bracket( ::std::string value ) {
 				int32_t bracket_count = 1;
-				for( int32_t pos = 0; pos < static_cast<int32_t>(value.size( )); ++pos ) {
+				int32_t pos = 0;
+				if( ')' == value[pos] ) {
+					return pos;
+				}
+				++pos;
+				for( ; pos < static_cast<int32_t>(value.size( )); ++pos ) {
 					if( '(' == value[pos] ) {
 						++bracket_count;
 					} else if( ')' == value[pos] ) {
@@ -438,6 +441,63 @@ namespace daw {
 
 
 		}	// namespace anonymous
+
+		BasicArray::BasicArray( size_t Dim_1, size_t Dim_2 ): dim_2( Dim_2 ), values( Dim_1*dim_2 ) { }
+
+		BasicValue& BasicArray::operator( ) ( size_t Dim_1, size_t Dim_2 ) {
+			try {
+				return values.at( dim_2*Dim_2 + Dim_1 );
+			} catch( ::std::out_of_range ex ) {
+				size_t dim_1 = values.size( );
+				if( 0 < dim_2 ) {
+					dim_1 /= dim_2;
+				}
+				::std::stringstream ss;
+				ss << "Array out of bounds.  Max is ( " << dim_1;
+				if( 0 < dim_2 ) {
+					ss << ", " << dim_2;
+				}
+				ss << " ) asked for ( " << Dim_1;
+				if( 0 < Dim_2 || 0 < dim_2 ) {
+					ss << ", " << Dim_2;
+				}
+				ss << ")";
+				CreateError( ErrorTypes::SYNTAX, ss.str( ) );
+			}
+		}
+		const BasicValue& BasicArray::operator() ( size_t Dim_1, size_t Dim_2 ) const {
+			try {
+				return values.at( dim_2*Dim_2 + Dim_1 );
+			} catch( ::std::out_of_range ex ) {
+				size_t dim_1 = values.size( );
+				if( 0 < dim_2 ) {
+					dim_1 /= dim_2;
+				}
+				::std::stringstream ss;
+				ss << "Array out of bounds.  Max is ( " << dim_1;
+				if( 0 < dim_2 ) {
+					ss << ", " << dim_2;
+				}
+				ss << " ) asked for ( " << Dim_1;
+				if( 0 < Dim_2 || 0 < dim_2 ) {
+					ss << ", " << Dim_2;
+				}
+				ss << ")";
+				CreateError( ErrorTypes::SYNTAX, ss.str( ) );
+			}
+		}
+
+		::std::pair<size_t, size_t> BasicArray::dimensions( ) const {
+			if( 0 < dim_2 ) {
+				auto dim_1 = size( ) - (size( ) / dim_2);
+				return{ dim_1, dim_2 };
+			}
+			return{ size( ), 0 };
+		}
+
+		size_t BasicArray::size( ) const {
+			return values.size( );
+		}
 
 		bool Basic::is_unary_operator( ::std::string oper ) {
 			return key_exists( m_unary_operators, oper );
@@ -574,7 +634,23 @@ namespace daw {
 		}
 
 		BasicValue& Basic::get_variable( ::std::string name ) {
-			return retrieve_value( m_variables, ::std::move( name ) );
+			// Parse brackets and return individual variable
+			bool is_array = false;
+			int32_t start = 0;
+			int32_t end = 0;
+			for( int32_t pos = 0; pos < static_cast<int32_t>(name.size( )); ++pos ) {
+				if( '(' == name[pos] ) {
+					start = pos;
+					end = find_end_of_bracket( name.substr( pos ) );
+					is_array = ::std::string::npos != end;
+				}
+			}
+			if( is_array ) {
+				auto params = evaluate_parameters( name.substr( start, end - start ) );
+				
+			} else {
+				return retrieve_value( m_variables, ::std::move( name ) );
+			}
 		}
 
 		void Basic::clear_program( ) {
@@ -631,7 +707,18 @@ namespace daw {
 			::std::sort( ::std::begin( keys ), ::std::end( keys ) );
 			for( auto& current_variable_name : keys ) {
 				const auto& current_variable = m_variables[current_variable_name];
-				ss << current_variable_name << ": " << value_type_string( current_variable ) << " = " << to_string( current_variable ) << "\n";
+				auto value_type = get_value_type( current_variable );
+				ss << current_variable_name << ": " << value_type_string( value_type );
+				if( ValueType::ARRAY == value_type ) {
+					auto array_value = to_array( current_variable );
+					auto dimensions = array_value.dimensions( );
+					ss << "( " << dimensions.first;
+					if( 0 < dimensions.second ) {
+						ss << ", " << dimensions.second;
+					}
+					ss << " )";
+				}
+				ss << " = " << to_string( current_variable ) << "\n";
 			}
 			return ss.str( );
 		}
@@ -1196,17 +1283,17 @@ namespace daw {
 				return basic_value_string( char_to_string( static_cast<char>(ascii_code) ) );
 			} );
 
-			add_function( "SPLIT$", "SPLIT$( string, delimiter ) -> Returns an array of strings from the original string delimited by delimiter", [&]( ::std::vector<BasicValue> value ) {
-				if( 2 != value.size( ) ) {
-					throw CreateError( ErrorTypes::SYNTAX, "SPLIT$ requires 2 parameters" );
-				} else if( ValueType::STRING != get_value_type( value[0] ) || ValueType::STRING != get_value_type( value[1] ) ) {
-					throw CreateError( ErrorTypes::SYNTAX, "SPLIT$ requires string parameters" );
-				}
-				auto str_string = to_string( value[0] );
-				auto str_delim = to_string( value[1] );
-				auto result = split( ::std::move( str_string ), ::std::move( str_delim ) );
-				return basic_value_string_array( ::std::move( result ) );
-			} );
+// 			add_function( "SPLIT$", "SPLIT$( string, delimiter ) -> Returns an array of strings from the original string delimited by delimiter", [&]( ::std::vector<BasicValue> value ) {
+// 				if( 2 != value.size( ) ) {
+// 					throw CreateError( ErrorTypes::SYNTAX, "SPLIT$ requires 2 parameters" );
+// 				} else if( ValueType::STRING != get_value_type( value[0] ) || ValueType::STRING != get_value_type( value[1] ) ) {
+// 					throw CreateError( ErrorTypes::SYNTAX, "SPLIT$ requires string parameters" );
+// 				}
+// 				auto str_string = to_string( value[0] );
+// 				auto str_delim = to_string( value[1] );
+// 				auto result = split( ::std::move( str_string ), ::std::move( str_delim ) );
+// 				return basic_value_array( ::std::move( result ) );
+// 			} );
 
 			//////////////////////////////////////////////////////////////////////////
 			// Keywords
@@ -1235,7 +1322,26 @@ namespace daw {
 			};
 
 			m_keywords["DIM"] = [&]( ::std::string parse_string ) mutable -> bool {
-				throw ::std::runtime_error( "Not implemented" );
+				auto var_name_and_param = split_in_two_on_char( parse_string, '(' );
+				if( 2 != var_name_and_param.size( ) ) {
+					throw CreateError( ErrorTypes::SYNTAX, "Could not find parameters surrounded by ( )" );
+				}
+				::std::vector<::std::string> params = split( var_name_and_param[1], ',' );	
+				if( 2 < params.size( ) || 1 > params.size( ) ) {
+					throw CreateError( ErrorTypes::SYNTAX, "Must specify at least 1 size parameter to DIM and optionally 2" );
+				}
+				int32_t dim_1 = to_integer( params[0] );
+				int32_t dim_2 = 0;
+				if( 2 == params.size( ) ) {
+					dim_2 = to_integer( params[1] );
+				}
+				auto new_array = basic_value_array( BasicArray( ::std::move( dim_1 ), ::std::move( dim_2 ) ) );
+				auto var_name = boost::algorithm::to_upper_copy( boost::algorithm::trim_copy( var_name_and_param[0] ) );
+				if( is_keyword( var_name ) ) {
+
+				}
+				m_variables[::std::move( var_name )] = ::std::move( new_array );
+
 				return true;
 			};
 
@@ -1617,11 +1723,27 @@ namespace daw {
 						auto first_bracket = current_operand.find( '(' );
 						auto function_name = boost::algorithm::to_upper_copy( current_operand.substr( 0, first_bracket ) );
 						if( !is_function( function_name ) ) {
-							throw CreateError( ErrorTypes::SYNTAX, "Unknown function '" + function_name + "'" );
+							if( is_variable( function_name ) ) {
+								// We are an array
+								auto dimension_string = current_operand.substr( first_bracket + 1, current_operand.size( ) - first_bracket - 2 );
+								auto dimension_param = evaluate_parameters( dimension_string );
+								auto array_value = to_array( get_variable_constant( function_name ) );
+								if( 1 == dimension_param.size( ) ) {
+									operand_stack.push_back( array_value( to_integer( dimension_param[0] ), 0 ) );
+								} else if( 2 == dimension_param.size( ) ) {
+									operand_stack.push_back( array_value( to_integer( dimension_param[0] ), to_integer( dimension_param[1] ) ) );
+								} else {
+									throw CreateError( ErrorTypes::SYNTAX, "Must supply 1 or 2 parameters for the array subscript" );
+								}
+
+							} else {
+								throw CreateError( ErrorTypes::SYNTAX, "Unknown function '" + function_name + "'" );
+							}
+						} else {
+							auto param_string = current_operand.substr( first_bracket + 1, current_operand.size( ) - first_bracket - 2 );
+							auto function_parameters = evaluate_parameters( param_string );
+							operand_stack.push_back( exec_function( function_name, function_parameters ) );
 						}
-						auto param_string = current_operand.substr( first_bracket + 1, current_operand.size( ) - first_bracket - 2 );
-						auto function_parameters = evaluate_parameters( param_string );
-						operand_stack.push_back( exec_function( function_name, function_parameters ) );
 					} else if( is_variable( current_operand_upper ) ) {
 						// We are a variable, push value onto stack
 						operand_stack.emplace_back( get_variable_constant( current_operand_upper ) );
@@ -1728,6 +1850,12 @@ namespace daw {
 			init( );
 		}
 
+		::std::vector<::std::string> Basic::split( ::std::string text, char delimiter ) {
+			::std::string str_delimeter( " " );
+			str_delimeter[0] = delimiter;
+			return split( text, str_delimeter );
+		}
+
 		::std::vector<::std::string> Basic::split( ::std::string text, ::std::string delimiter ) {
 			std::vector<::std::string> tokens;
 			size_t pos = 0;
@@ -1745,7 +1873,7 @@ namespace daw {
 
 		Basic::Basic( ::std::string program_code ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( ::std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {
 			init( );
-			for( auto current_line : split( program_code, ::std::string( "\n" ) ) ) {
+			for( auto current_line : split( program_code, '\n' ) ) {
 				parse_line( current_line );
 			}
 
