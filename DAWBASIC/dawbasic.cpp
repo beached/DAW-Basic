@@ -1045,22 +1045,21 @@ namespace daw {
 				}
 			}
 			{
-				// 				auto keys = get_keys( m_arrays );
-				// 				::std::sort( ::std::begin( keys ), ::std::end( keys ) );
-				// 				for( auto& current_array_name : keys ) {
-				// 					const auto& array_value = get_variable( current_array_name );
-				// 					
-				// 					auto dimensions = array_value.dimensions( )
-				// 					ss << "( " << dimensions.first;
-				// 					if( 0 < dimensions.second ) {
-				// 						ss << ", " << dimensions.second;
-				// 					}
-				// 					ss << " )";
-				//
-				//				}
+				auto keys = get_keys( m_arrays );
+				::std::sort( ::std::begin( keys ), ::std::end( keys ) );
+				for( auto& current_array_name : keys ) {
+					const auto& array_value = m_arrays[current_array_name];					
+					auto dimensions = array_value.dimensions( );
+					ss << current_array_name << "( ";
+					for( size_t n = 0; n < dimensions.size( ); ++n ) {
+						if( 0 < n ) {
+							ss << ", ";
+						}
+						ss << dimensions[n];
+					}
+					ss << " )\n";
+				}
 			}
-
-
 			return ss.str( );
 		}
 
