@@ -56,14 +56,19 @@ namespace daw {
 
 			class BasicArray {
 			private:
-				const ::std::vector<size_t> m_dimensions;
+				::std::vector<size_t> m_dimensions;
 				::std::vector<BasicValue> m_values;
 			public:
 				BasicArray( );
 				BasicArray( ::std::vector<size_t> dimensions );
+				BasicArray( const BasicArray& other );
+				BasicArray( BasicArray&& other );
+
+				BasicArray& operator=(BasicArray other);
 
 				BasicValue& operator() ( ::std::vector<size_t> dimensions );
 				const BasicValue& operator() ( ::std::vector<size_t> dimensions ) const;
+
 				::std::vector<size_t> dimensions( ) const;
 				size_t total_items( ) const;
 			};

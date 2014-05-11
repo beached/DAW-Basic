@@ -34,7 +34,7 @@ namespace daw {
 				}
 				throw ::std::runtime_error( "Unknown error type tried to be thrown" );
 			}
-	
+
 			integer operator_rank( ::std::string oper ) {
 				if( "NEG" == oper ) {
 					return 1;
@@ -215,8 +215,8 @@ namespace daw {
 						ss << "FALSE";
 					}
 					break;
-				case ValueType::ARRAY: 
-				break;
+				case ValueType::ARRAY:
+					break;
 				default:
 					throw create_basic_exception( ErrorTypes::FATAL, "Unknown ValueType" );
 				}
@@ -450,7 +450,7 @@ namespace daw {
 
 				return result;
 			}
-		
+
 			::std::vector<size_t> convert_dimensions( ::std::vector<BasicValue> dimensions ) {
 				::std::vector<size_t> index;
 				for( const auto& value : dimensions ) {
@@ -464,9 +464,19 @@ namespace daw {
 		//////////////////////////////////////////////////////////////////////////
 		// Basic::BasicArray
 		//////////////////////////////////////////////////////////////////////////
-		Basic::BasicArray::BasicArray( ): m_dimensions( ), m_values( ) { }
-		
-		Basic::BasicArray::BasicArray( ::std::vector<size_t> dimensions ): m_dimensions( dimensions ), m_values( multiply_list( dimensions ) ) {  }
+		Basic::BasicArray::BasicArray( ): m_dimensions{ }, m_values{ } { }
+
+		Basic::BasicArray::BasicArray( ::std::vector<size_t> dimensions ) : m_dimensions{ dimensions }, m_values{ multiply_list( dimensions ) } { }
+
+		Basic::BasicArray::BasicArray( const BasicArray& other ) : m_dimensions{ other.m_dimensions }, m_values{ other.m_values } { }
+
+		Basic::BasicArray::BasicArray( BasicArray&& other ) : m_dimensions{ ::std::move( other.m_dimensions ) }, m_values{ ::std::move( other.m_values ) } { }
+
+		Basic::BasicArray& Basic::BasicArray::operator=(BasicArray other) {
+			m_dimensions = ::std::move( other.m_dimensions );
+			m_values = ::std::move( other.m_values );
+			return *this;
+		}
 
 
 		BasicValue& Basic::BasicArray::operator( )( ::std::vector<size_t> dimensions ) {
@@ -837,7 +847,7 @@ namespace daw {
 			} else if( is_function( name ) | is_keyword( name ) ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Cannot create a variable with the same name as a system function/keyword" );
 			}
-			m_arrays[::std::move( name )]{ convert_dimensions( ::std::move( dimensions ) ) };
+			m_arrays[name] = BasicArray{ convert_dimensions( ::std::move( dimensions ) ) };
 		}
 
 		void Basic::add_constant( ::std::string name, ::std::string description, BasicValue value ) {
@@ -937,11 +947,13 @@ namespace daw {
 					brackets_start = pos;
 					brackets_end = find_end_of_bracket( name.substr( pos ) );
 					is_array_value = ::std::string::npos != brackets_end;
+					break;
 				}
 			}
-			if( is_array_value ) {				
+			if( is_array_value ) {
 				auto array_name = name.substr( 0, brackets_start );
-				auto params = evaluate_parameters( name.substr( brackets_start, brackets_end - brackets_start ) );
+				auto params_str = name.substr( brackets_start + 1, brackets_end - 1);
+				auto params = evaluate_parameters( ::std::move( params_str ) );
 				return get_array_variable( array_name, ::std::move( params ) );
 			} else {
 				return retrieve_value( m_variables, ::std::move( name ) );
@@ -1629,6 +1641,7 @@ namespace daw {
 				if( 2 != var_name_and_param.size( ) ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Could not find parameters surrounded by ( )" );
 				}
+				var_name_and_param[1] = var_name_and_param[1].substr( 0, find_end_of_bracket( var_name_and_param[1] ) );
 				
 				auto params = evaluate_parameters( var_name_and_param[1] );
 				if( 2 < params.size( ) || 1 > params.size( ) ) {
