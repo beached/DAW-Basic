@@ -89,6 +89,8 @@ namespace daw {
 			BasicValue exec_function( ::std::string name, ::std::vector<BasicValue> arguments );
 			BasicValue& get_variable( ::std::string name );
 			BasicValue& get_array_variable( ::std::string name, ::std::vector<BasicValue> params );
+			BasicValue& get_array_variable( ::std::string name );
+			::std::pair<::std::string, ::std::vector<BasicValue>> split_arrayfunction_from_string( ::std::string value );
 			ProgramType m_program;
 			ProgramType::iterator find_line( integer line_number );
 			ProgramType::iterator first_line( );

@@ -720,8 +720,8 @@ namespace daw {
 						auto first_bracket = current_operand.find( '(' );
 						auto function_name = current_operand.substr( 0, first_bracket );
 						if( !is_function( function_name ) ) {
-							if( is_variable( function_name ) ) {
-								goto evaluate_is_variable;
+							if( is_array( function_name ) ) {
+								operand_stack.emplace_back( get_array_variable( current_operand ) );								
 							} else {
 								throw create_basic_exception( ErrorTypes::SYNTAX, "Unknown function '" + function_name + "'" );
 							}
@@ -935,6 +935,27 @@ namespace daw {
 			auto& current_array( retrieve_value( m_arrays, ::std::move( name ) ) );
 			return current_array( convert_dimensions( ::std::move( params ) ) );
 		}
+
+		::std::pair<::std::string, ::std::vector<BasicValue>> Basic::split_arrayfunction_from_string( ::std::string name ) {
+			auto bracket_pos = name.find( '(' );
+			if( ::std::string::npos == bracket_pos ) {
+				throw create_basic_exception( ErrorTypes::FATAL, "Expected to find start bracket but none found." );
+			}
+			auto array_name = name.substr( 0, bracket_pos );
+			auto bracket_end = name.find( ')' );
+			if( ::std::string::npos == bracket_end ) {
+				throw create_basic_exception( ErrorTypes::FATAL, "Expected to find end bracket but none found." );
+			}
+			auto param_str = name.substr( bracket_pos + 1, bracket_end - bracket_pos - 1 );
+			auto param_values = evaluate_parameters( ::std::move( param_str ) );
+			return{ ::std::move( array_name ), ::std::move( param_values ) };
+		}
+
+		BasicValue& Basic::get_array_variable( ::std::string name ) {
+			auto nameparam = split_arrayfunction_from_string( ::std::move( name ) );
+			return get_array_variable( ::std::move( nameparam.first ), ::std::move( nameparam.second ) );
+		}
+
 
 		BasicValue& Basic::get_variable( ::std::string name ) {
 
@@ -1733,7 +1754,7 @@ namespace daw {
 					return true;
 				}
 
-				::std::string evaluated_value = to_string( evaluate( parse_string ) );
+				::std::string evaluated_value = to_string( evaluate( ::std::move( parse_string ) ) );
 				::std::cout << ::std::move( evaluated_value ) << ::std::endl;
 				return true;
 			};
