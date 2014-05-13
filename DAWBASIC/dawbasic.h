@@ -17,7 +17,6 @@ namespace daw {
 	namespace basic {
 		enum class ErrorTypes { SYNTAX, FATAL };
 		enum class ValueType { EMPTY, STRING, INTEGER, REAL, BOOLEAN, ARRAY };
-
 		typedef ::std::pair<ValueType, boost::any> BasicValue;
 		typedef bool boolean;
 		typedef double real;
@@ -30,7 +29,7 @@ namespace daw {
 		typedef ::std::function<bool( ::std::string )> BasicKeyword;
 		typedef ::std::pair<integer, ::std::string> ProgramLine;
 		typedef ::std::vector<ProgramLine> ProgramType;
-
+		
 		class BasicException: public ::std::runtime_error {
 		public:
 			explicit BasicException( const ::std::string& msg, ErrorTypes errorType ): runtime_error( msg ) { }
@@ -75,13 +74,34 @@ namespace daw {
 		
 			::std::unique_ptr<Basic> m_basic;
 			::std::unordered_map<::std::string, ::std::function<bool( ::std::string )>> m_keywords;
-			::std::unordered_map<::std::string, BasicArray> m_arrays;
 			::std::unordered_map<::std::string, BasicBinaryOperand> m_binary_operators;
 			::std::unordered_map<::std::string, BasicUnaryOperand> m_unary_operators;
 			::std::unordered_map<::std::string, BasicValue> m_variables;
+			::std::unordered_map<::std::string, BasicArray> m_arrays;
 			::std::unordered_map<::std::string, ConstantType> m_constants;
 			::std::unordered_map<::std::string, FunctionType> m_functions;
 			::std::vector<ProgramType::iterator> m_program_stack;	// GOSUB/RETURN
+
+			class LoopStackType {
+			public:
+				enum class LoopType { FOR, WHILE };
+			private:
+				struct LoopStackValueType {
+					LoopType loop_type;
+					ProgramType::iterator start_of_loop;
+					bool can_enter_loop_body( );
+				};
+				::std::vector<LoopStackValueType> loop_stack;
+				LoopStackValueType& peek_full( );
+			public:
+				ProgramType::iterator peek( );
+				ProgramType::iterator pop( );
+				bool empty( ) const;				
+				size_t size( ) const;
+				void push( LoopType type_of_loop, ProgramType::iterator start_of_loop );
+			} m_loop_stack;
+
+			::std::vector<BasicValue> m_data_array;
 
 			::std::vector<BasicValue> evaluate_parameters( ::std::string value );
 

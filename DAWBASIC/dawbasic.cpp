@@ -2122,5 +2122,46 @@ namespace daw {
 		}
 
 
+
+		//Basic::LoopStackType
+		Basic::LoopStackType::LoopStackValueType& Basic::LoopStackType::peek_full( ) {
+			return *(::std::end( loop_stack ));
+		}
+
+		ProgramType::iterator Basic::LoopStackType::peek( ) {
+			return peek_full( ).start_of_loop;
+		}
+
+		ProgramType::iterator Basic::LoopStackType::pop( ) {
+			auto result = peek( );
+			loop_stack.pop_back( );
+			return result;
+		}
+
+		bool Basic::LoopStackType::empty( ) const {
+			return 0 == size( );
+		}
+
+		bool Basic::LoopStackType::LoopStackValueType::can_enter_loop_body( ) {
+			switch( loop_type ) {
+			case LoopType::FOR:
+				::std::string for_body = boost::algorithm::trim_copy( start_of_loop->second.substr( 4 ) );
+				break;
+			case LoopType::WHILE:
+			deault :
+				throw daw::basic::create_basic_exception( ErrorTypes::FATAL, "Not implemented" );
+			}
+			return false;
+		}
+		
+		size_t Basic::LoopStackType::size( ) const {
+			return loop_stack.size( );
+		}
+		
+		void Basic::LoopStackType::push( LoopType type_of_loop, ProgramType::iterator start_of_loop ) {
+			loop_stack.emplace_back( LoopStackValueType{ ::std::move( type_of_loop ), ::std::move( start_of_loop ) } );
+		}
+				
+
 	}  // namespace basic
 } // namespace daw
