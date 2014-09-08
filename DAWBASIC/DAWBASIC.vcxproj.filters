@@ -18,6 +18,12 @@
     <ClInclude Include="dawbasic.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="mostlyimmutable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="basic_statement.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

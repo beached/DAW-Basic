@@ -79,6 +79,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="dawbasic.h" />
+    <ClInclude Include="mostlyimmutable.h" />
+    <ClInclude Include="basic_statement.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dawbasic.cpp" />
