@@ -343,7 +343,7 @@ namespace daw {
 			V pop( std::vector<V>& vect ) {
 				auto result = *vect.rbegin( );
 				vect.pop_back( );
-				result;
+				return result;
 			}
 
 			//////////////////////////////////////////////////////////////////////////
@@ -507,6 +507,31 @@ namespace daw {
 			m_values = std::move( other.m_values );
 			return *this;
 		}
+
+		namespace {
+			template<typename Iter1, typename Iter2, typename Predicate>
+			bool are_equal( Iter1 it_start1, Iter1 it_end1, Iter2 it_start2, Iter2 it_end2, Predicate pred ) {
+				while( it_start1 != it_end1 && it_start2 != it_end2 ) {
+					if( !pred( *it_start1, *it_start2 ) ) {
+						return false;
+					}
+					++it_start1;
+					++it_start2;
+				}
+				return it_start1 == it_end1 && it_start2 == it_end2;
+			}
+
+			template<typename ContainerType, typename Predicate>
+			bool are_equal( const ContainerType& c1, const ContainerType& c2, Predicate pred = std::operator== ) {
+				bool result = c1.size( ) == c2.size( );
+				if( result ) {
+					using std::begin;
+					using std::end;
+					result = are_equal( begin( c1 ), end( c1 ), begin( c2 ), end( c2 ), pred );
+				}
+				return result;
+			}
+		}
 	
 		bool Basic::BasicArray::operator==(const BasicArray& rhs) const {
 			auto compare_function = []( const basic::BasicValue& v1, const basic::BasicValue& v2 ) {
@@ -529,8 +554,12 @@ namespace daw {
 				}
 				return result;
 			};
-			
-			return std::equal( m_dimensions.cbegin( ), m_dimensions.cend( ), rhs.m_dimensions ) && std::equal( m_values.cbegin( ), m_values.cend( ), rhs.m_values, compare_function );
+
+			auto eq_compare = []( size_t v1, size_t v2 ) {
+				return v1 == v2;
+			};
+
+			return are_equal( m_dimensions, rhs.m_dimensions, eq_compare ) && are_equal( m_values, rhs.m_values, compare_function );
 		}
 
 		BasicValue& Basic::BasicArray::operator( )( std::vector<size_t> dimensions ) {
