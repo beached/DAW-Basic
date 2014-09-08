@@ -521,8 +521,17 @@ namespace daw {
 				return it_start1 == it_end1 && it_start2 == it_end2;
 			}
 
+			template<typename Iter1, typename Iter2>
+			bool are_equal( Iter1 it_start1, Iter1 it_end1, Iter2 it_start2, Iter2 it_end2 ) { 
+				using ValueType = decltype(*it_start1);
+				auto eq_compare = []( const ValueType& v1, const ValueType& v2 ) {
+					return v1 == v2;
+				};
+				return are_equal( it_start1, it_end1, it_start2, it_end2, eq_compare );
+			}
+
 			template<typename ContainerType, typename Predicate>
-			bool are_equal( const ContainerType& c1, const ContainerType& c2, Predicate pred = std::operator== ) {
+			bool are_equal( const ContainerType& c1, const ContainerType& c2, Predicate pred ) {
 				bool result = c1.size( ) == c2.size( );
 				if( result ) {
 					using std::begin;
@@ -530,6 +539,15 @@ namespace daw {
 					result = are_equal( begin( c1 ), end( c1 ), begin( c2 ), end( c2 ), pred );
 				}
 				return result;
+			}
+
+			template<typename ContainerType>
+			bool are_equal( const ContainerType& c1, const ContainerType& c2 ) {
+				using ValueType = ContainerType::value_type;
+				auto eq_compare = []( const ValueType& v1, const ValueType& v2 ) {
+					return v1 == v2;
+				};
+				return are_equal( c1, c2, eq_compare );
 			}
 		}
 	
@@ -555,11 +573,7 @@ namespace daw {
 				return result;
 			};
 
-			auto eq_compare = []( size_t v1, size_t v2 ) {
-				return v1 == v2;
-			};
-
-			return are_equal( m_dimensions, rhs.m_dimensions, eq_compare ) && are_equal( m_values, rhs.m_values, compare_function );
+			return are_equal( m_dimensions, rhs.m_dimensions ) && are_equal( m_values, rhs.m_values, compare_function );
 		}
 
 		BasicValue& Basic::BasicArray::operator( )( std::vector<size_t> dimensions ) {
@@ -1043,9 +1057,7 @@ namespace daw {
 			return get_array_variable( std::move( nameparam.first ), std::move( nameparam.second ) );
 		}
 
-
 		BasicValue& Basic::get_variable( std::string name ) {
-
 			// Parse brackets and return individual variable
 			bool is_array_value = false;
 			int32_t brackets_start = 0;
