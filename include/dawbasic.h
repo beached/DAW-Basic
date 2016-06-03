@@ -52,6 +52,13 @@ namespace daw {
 		
 		class BasicException: public std::runtime_error {
 		public:
+			BasicException( ) = delete;
+			~BasicException( );
+			BasicException( BasicException const & ) = default;
+			BasicException( BasicException && ) = default;
+			BasicException & operator=( BasicException const & ) = default;
+			BasicException & operator=( BasicException && ) = default;
+
 			explicit BasicException( const std::string& msg, ErrorTypes errorType ): runtime_error( msg ) { }
 			explicit BasicException( const char* msg, ErrorTypes errorType ): runtime_error( msg ) { }
 			ErrorTypes error_type;
@@ -74,7 +81,6 @@ namespace daw {
 			};
 
 			class BasicArray {
-			private:
 				std::vector<size_t> m_dimensions;
 				std::vector<BasicValue> m_values;
 			public:
@@ -91,7 +97,7 @@ namespace daw {
 
 				std::vector<size_t> dimensions( ) const;
 				size_t total_items( ) const;
-			};
+			};	// class BasicArray
 		
 			std::unique_ptr<Basic> m_basic;
 			std::unordered_map<std::string, std::function<bool( std::string )>> m_keywords;
@@ -109,12 +115,11 @@ namespace daw {
 				protected:
 					LoopType( ) = default;
 				public:
-					virtual ~LoopType( ) = 0;
+					virtual ~LoopType( );
 					virtual bool can_enter_loop_body( ) = 0;
 				};				
 
 				class ForLoop: public LoopType {
-				private:
 					std::string m_variable_name;
 					daw::MostlyImmutable<BasicValue> m_start_value;
 					daw::MostlyImmutable<BasicValue> m_end_value;
@@ -123,7 +128,13 @@ namespace daw {
 				public:
 					static std::shared_ptr<LoopType> create_for_loop( ProgramType::iterator program_line );
 					virtual bool can_enter_loop_body( );
-				};
+					~ForLoop( ) = default;
+					ForLoop( ) = delete;
+					ForLoop( ForLoop const & ) = default;
+					ForLoop( ForLoop && ) = default;
+					ForLoop & operator=( ForLoop const & ) = default;
+					ForLoop & operator=( ForLoop && ) = default;
+				};	// class ForLoop
 
 
 			private:

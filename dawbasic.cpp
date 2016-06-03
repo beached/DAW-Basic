@@ -57,6 +57,8 @@ namespace daw {
 	}
 
 	namespace basic {
+		BasicException::~BasicException( ) { }
+
 		using std::placeholders::_1;
 
 		namespace {
@@ -2132,13 +2134,13 @@ namespace daw {
 			case ErrorTypes::SYNTAX:
 				msg = "SYNTAX ERROR: " + msg;
 				if( RunMode::DEFERRED == m_run_mode && std::end( m_program ) != m_program_it ) {
-					msg += "\nError on line " + m_program_it->first;
+					msg += "\nError on line " + std::to_string( m_program_it->first );
 				}
 				return BasicException( std::move( msg ), std::move( error_type ) );
 			case ErrorTypes::FATAL:
 				msg = "FATAL ERROR: " + msg;
 				if( RunMode::DEFERRED == m_run_mode && std::end( m_program ) != m_program_it ) {
-					msg += "\nError on line " + m_program_it->first;
+					msg += "\nError on line " + std::to_string( m_program_it->first );
 				}
 				return BasicException( std::move( msg ), std::move( error_type ) );
 			}
@@ -2167,26 +2169,28 @@ namespace daw {
 					}
 
 					// Except within quoted areas, split string on colon : boundaries 
-
-					int32_t last_pos = 0;
-					int32_t pos = 0;
+	
 					std::vector<std::string> statements;
-					for( ; pos < static_cast<int32_t>(parse_string.size( )); ++pos ) {
-						const auto current_char = parse_string[pos];
-						switch( current_char ) {
-						case '"':
-							pos += find_end_of_string( parse_string.substr( pos ) );
-							break;
-						case ':':
-							statements.push_back( parse_string.substr( last_pos, pos - last_pos ) );
-							if( pos + 1 < static_cast<int32_t>(parse_string.size( )) ) {
-								++pos;
+					{
+						size_t last_pos = 0;
+						size_t pos = 0;
+						for( ; pos < parse_string.size( ); ++pos ) {
+							const auto current_char = parse_string[pos];
+							switch( current_char ) {
+							case '"':
+								pos += find_end_of_string( parse_string.substr( pos ) );
+								break;
+							case ':':
+								statements.push_back( parse_string.substr( last_pos, pos - last_pos ) );
+								if( pos + 1 < parse_string.size( ) ) {
+									++pos;
+								}
+								last_pos = pos;
+								break;
 							}
-							last_pos = pos;
-							break;
 						}
+						statements.push_back( parse_string.substr( last_pos, pos - last_pos ) );
 					}
-					statements.push_back( parse_string.substr( last_pos, pos - last_pos ) );
 
 					for( auto current_statement : statements ) {
 						std::string params;
@@ -2301,7 +2305,7 @@ namespace daw {
 			loop_stack.emplace_back( type_of_loop, start_of_loop );
 		}
 
-		Basic::LoopStackType::LoopType::~LoopType( ) = default;
+		Basic::LoopStackType::LoopType::~LoopType( ) { };
 
 		Basic::LoopStackType::ForLoop::ForLoop( std::string variable_name, BasicValue start_value, BasicValue end_value, BasicValue step_value ): Basic::LoopStackType::LoopType( ), m_variable_name( variable_name ), m_start_value( start_value ), m_end_value( end_value ), m_step_value( step_value ) {
 			daw::exception::syntax_errror_on_false( is_numeric( start_value ), "Start Value must be numeric" );

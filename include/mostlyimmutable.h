@@ -28,50 +28,50 @@ namespace daw {
 	/// Summary: Defines a template that allows easy reading of a value but one
 	/// must use the accessor method write_value to modify the value.  This should
 	/// simulate const but allow writes and catch some errors.
-	template<typename ValueType>
+	template<typename T>
 	class MostlyImmutable {
+		T m_value;
 	public:
-		MostlyImmutable( ): m_value{ } { }
-		MostlyImmutable( ValueType value ): m_value{ std::move( value ) } { }
-		MostlyImmutable( const MostlyImmutable& ) = default;
-		MostlyImmutable( const MostlyImmutable&& value ): m_value( std::move( value.m_value ) ) { }
+		MostlyImmutable( ) = default;
 		~MostlyImmutable( ) = default;
+		MostlyImmutable( MostlyImmutable const & ) = default;
+		MostlyImmutable( MostlyImmutable && ) = default;
+		MostlyImmutable( T value ): m_value( std::move( value ) ) { }
+		MostlyImmutable & operator=( MostlyImmutable const & ) = default;
+		MostlyImmutable & operator=( MostlyImmutable && ) = default;
 
 		MostlyImmutable& operator=(MostlyImmutable rhs) {
 			m_value = std::move( rhs.m_value );
 			return *this;
 		}
 
-		bool operator==(const MostlyImmutable& rhs) {
+		bool operator==( MostlyImmutable const & rhs) {
 			return rhs.m_value == m_value;
 		}
 
-		operator const ValueType&() const {
+		operator T const &( ) const {
 			return m_value;
 		}
 
-		ValueType& write( ) {
+		T & write( ) {
 			return m_value;
 		}
 
-		void write( ValueType value ) {
+		void write( T value ) {
 			m_value = std::move( value );
 		}
 
-		const ValueType& read( ) const {
+		T const & read( ) const {
 			return m_value;
 		}
 
-		ValueType copy( ) {
+		T copy( ) {
 			return m_value;
 		}
+	};	// class MostlyImmutable
 
-	private:
-		ValueType m_value;
-	};
-
-	template<typename ValueType>
-	std::ostream& operator<<(std::ostream& os, const MostlyImmutable<ValueType> &value) {
+	template<typename T>
+	std::ostream& operator<<( std::ostream & os, MostlyImmutable<T> const & value ) {
 		os << value.read( );
 		return os;
 	}
