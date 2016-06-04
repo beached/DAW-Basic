@@ -50,25 +50,56 @@ namespace {
 		std::copy( rhs.begin( ), rhs.end( ), out_it );
 		return result;
 	}
+	
+	template<typename Iterator, typename UnaryPredicate>
+	auto find_last_of( Iterator first, Iterator last, UnaryPredicate pred ) {
+		auto prev = last;
+		while( first != last ) {
+			if( !pred( *first ) ) {
+				break;
+			}
+			prev = first;
+			++first;
+		}
+		return prev;
+	}
 
-	boost::string_ref trim( boost::string_ref value ) {
-		if( 0 == value.size( ) ) {
-			return value;
-		}
-		size_t lhs = 0;
-		size_t rhs = value.size( ) - 1;
-		while( lhs < rhs && 0 != std::isspace( value[lhs] ) ) {
-			++lhs;
-		}
-		if( !std::isspace( value[lhs] ) && 0 < lhs ) {
-			--lhs;
-		}
-		while( rhs >= lhs && 0 != std::isspace( value[rhs] ) ) {
-			if( 0 < rhs ) {
-				--rhs;
+	
+	template<typename Iterator, typename UnaryPredicate>
+	auto find_first_of( Iterator first, Iterator last, UnaryPredicate pred ) {
+		while( first != last ) {
+			if( pred( *first ) ) {
+				break;
 			}
 		}
-		return value.substr( lhs, rhs - lhs );
+		return first;
+	}
+
+	boost::string_ref trim_left( boost::string_ref value ) {
+		if( value.empty( ) ) {
+			return value;
+		}
+		auto first = find_first_of( value.cbegin( ), value.cend( ), []( auto c ) {
+			return !std::isspace( c );
+		} );
+		return value.substr( std::distance( value.cbegin( ), first ) );
+	}
+
+	boost::string_ref trim_right( boost::string_ref value ) {
+		if( value.empty( ) ) {
+			return value;
+		}
+		auto last = find_last_of( value.crbegin( ), value.crend( ), []( auto c ) {
+			return std::isspace( c ); 
+		} );
+		return value.substr( 0, value.size( ) - std::distance( value.crbegin( ), last ) );
+	}
+
+	boost::string_ref trim( boost::string_ref value ) {
+		if( value.empty( ) ) {
+			return value;
+		}
+		return trim_right( trim_left( value ) );
 	}
 
 	std::string to_upper( boost::string_ref str ) {
