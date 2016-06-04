@@ -43,7 +43,7 @@
 
 namespace {
 	std::string operator+( boost::string_ref lhs, boost::string_ref rhs ) {
-		std::string result( lhs.size( ) + rhs.size( ), static_cast<char>(0) );
+		std::string result( lhs.size( ) + rhs.size( ), '\0' );
 		auto out_it = std::copy( lhs.begin( ), lhs.end( ), result.begin( ) );
 		std::copy( rhs.begin( ), rhs.end( ), out_it );
 		return result;
@@ -55,18 +55,26 @@ namespace {
 		}
 		size_t lhs = 0;
 		size_t rhs = value.size( ) - 1;
-		while( lhs < rhs && std::isspace( value[lhs] ) ) {
+		while( lhs < rhs && 0 != std::isspace( value[lhs] ) ) {
 			++lhs;
 		}
 		if( !std::isspace( value[lhs] ) && 0 < lhs ) {
 			--lhs;
 		}
-		while( rhs >= lhs && std::isspace( rhs ) ) {
+		while( rhs >= lhs && 0 != std::isspace( value[rhs] ) ) {
 			if( 0 < rhs ) {
 				--rhs;
 			}
 		}			
 		return value.substr( lhs, rhs - lhs );
+	}
+
+	std::string to_upper( boost::string_ref str ) {
+		std::string result( str.size( ), '\0' );
+		std::transform( str.begin( ), str.end( ), result.begin( ), []( auto c ) {
+			return c & 0b11011111;
+		} );
+		return result;
 	}
 }	// namespace anonymous
 
@@ -89,19 +97,22 @@ namespace daw {
 	namespace basic {
 		BasicException::~BasicException( ) { }
 
+ 		BasicException::BasicException( std::string const & msg, ErrorTypes errorType ): runtime_error( msg ) { }
+		BasicException::BasicException( char const * msg, ErrorTypes errorType ): runtime_error( msg ) { }
+
 		using std::placeholders::_1;
 
 		namespace {
 
-			bool is_integer( const BasicValue& value ) {
+			bool is_integer( BasicValue const & value ) {
 				return ValueType::INTEGER == value.first;
 			}
 
-			bool is_real( const BasicValue& value ) {
+			bool is_real( BasicValue const & value ) {
 				return ValueType::REAL == value.first;
 			}
 
-			bool is_numeric( const BasicValue& value ) {
+			bool is_numeric( BasicValue const & value ) {
 				return is_integer( value ) || is_real( value );
 			}
 
@@ -139,8 +150,11 @@ namespace daw {
 				}
 				throw create_basic_exception( ErrorTypes::FATAL, "Unknown operator passed to operator_rank" );
 			}
-
-			const BasicValue EMPTY_BASIC_VALUE{ ValueType::EMPTY, boost::any( ) };
+			
+			BasicValue const & EMPTY_BASIC_VALUE( ) {
+				static BasicValue const result{ ValueType::EMPTY, boost::any( ) };	
+				return result;
+			}
 
 			ValueType get_value_type( BasicValue value ) {
 				return value.first;
@@ -189,14 +203,13 @@ namespace daw {
 				return ValueType::INTEGER;
 			}
 
-			std::vector<std::string> split_in_two_on_char( std::string parse_string, char separator ) {
-				using boost::algorithm::trim_copy;
-				parse_string = trim_copy( parse_string );
+			std::vector<boost::string_ref> split_in_two_on_char( boost::string_ref parse_string, char separator ) {
+				parse_string = trim( parse_string );
 				const auto pos = parse_string.find_first_of( separator );
-				std::vector<std::string> result;
-				if( std::string::npos != pos ) {
-					result.push_back( trim_copy( parse_string.substr( 0, pos ) ) );
-					result.push_back( trim_copy( parse_string.substr( pos + 1 ) ) );
+				std::vector<boost::string_ref> result;
+				if( boost::string_ref::npos != pos ) {
+					result.push_back( trim( parse_string.substr( 0, pos ) ) );
+					result.push_back( trim( parse_string.substr( pos + 1 ) ) );
 				} else {
 					result.push_back( parse_string );
 				}
@@ -225,8 +238,13 @@ namespace daw {
 					return static_cast<real>(to_integer( value ));
 				case ValueType::REAL:
 					return boost::any_cast<real>(value.second);
-				default:
+				case ValueType::ARRAY:
+				case ValueType::BOOLEAN:
+				case ValueType::EMPTY:
+				case ValueType::STRING:
 					throw create_basic_exception( ErrorTypes::FATAL, "Cannot convert non-numeric types to a number" );
+				default:
+					throw std::exception{ };
 				}
 			}
 
@@ -266,7 +284,7 @@ namespace daw {
 				case ValueType::STRING:
 					throw create_basic_exception( ErrorTypes::FATAL, "Attempt to create a numeric BasicValue from a non-numeric string" );
 				default:
-					throw std::exception( "Unkown ValueType" );
+					throw std::exception{ };
 				}
 			}
 
@@ -355,6 +373,12 @@ namespace daw {
 						return ValueType::INTEGER;
 					case daw::basic::ValueType::REAL:
 						return ValueType::REAL;
+					case daw::basic::ValueType::ARRAY:
+					case daw::basic::ValueType::BOOLEAN:
+					case daw::basic::ValueType::EMPTY:
+						break;
+					default:
+						throw std::exception{ };
 					}
 				} else if( ValueType::REAL == lhs_type ) {
 					switch( rhs_type ) {
@@ -363,6 +387,12 @@ namespace daw {
 						return ValueType::REAL;
 					case ValueType::STRING:
 						return ValueType::STRING;
+					case daw::basic::ValueType::ARRAY:
+					case daw::basic::ValueType::BOOLEAN:
+					case daw::basic::ValueType::EMPTY:
+						break;
+					default:
+						throw std::exception{ };
 					}
 				} else if( ValueType::STRING == lhs_type ) {
 					switch( rhs_type ) {
@@ -370,37 +400,43 @@ namespace daw {
 					case ValueType::REAL:
 					case ValueType::STRING:
 						return ValueType::STRING;
+					case daw::basic::ValueType::ARRAY:
+					case daw::basic::ValueType::BOOLEAN:
+					case daw::basic::ValueType::EMPTY:
+						break;
+					default:
+						throw std::exception{ };
 					}
 				} else if( ValueType::BOOLEAN == lhs_type ) {
 					switch( rhs_type ) {
 					case daw::basic::ValueType::BOOLEAN:
 						return ValueType::BOOLEAN;
+					case daw::basic::ValueType::ARRAY:
+					case daw::basic::ValueType::INTEGER:
+					case daw::basic::ValueType::REAL:
+					case daw::basic::ValueType::STRING:
+					case daw::basic::ValueType::EMPTY:
+						break;
+					default:
+						throw std::exception{ };
 					}
 				}
 				return ValueType::EMPTY;
 			}
 
-			template<typename M, typename K>
-			bool key_exists( const M& kv_map, K key ) {
-				boost::algorithm::to_upper( key );
-				return kv_map.cend( ) != kv_map.find( key );
+			template<typename M> 
+			bool key_exists( M const & kv_map, boost::string_ref key ) {
+				return kv_map.cend( ) != kv_map.find( to_upper( key ) );
 			}
 
-			template<typename K, typename V>
-			V& retrieve_value( std::map<K, V>& kv_map, K key ) {
-				boost::algorithm::to_upper( key );
-				return kv_map[key];
+			template<typename M> 
+			auto & retrieve_value( M & kv_map, boost::string_ref key ) {
+				return kv_map[to_upper( key )];
 			}
 
-			template<typename K, typename V>
-			V& retrieve_value( std::unordered_map<K, V>& kv_map, K key ) {
-				boost::algorithm::to_upper( key );
-				return kv_map[key];
-			}
-
-			template<typename V>
-			V pop( std::vector<V>& vect ) {
-				auto result = *vect.rbegin( );
+			template<typename Container>
+			auto pop( Container & vect ) {
+				auto result = vect.back( );
 				vect.pop_back( );
 				return result;
 			}
@@ -412,7 +448,7 @@ namespace daw {
 				boost::algorithm::trim( value );
 				switch( get_value_type( value ) ) {
 				case daw::basic::ValueType::EMPTY:
-					return EMPTY_BASIC_VALUE;
+					return EMPTY_BASIC_VALUE( );
 				case daw::basic::ValueType::STRING:
 					return basic_value_string( std::move( value ) );
 				case daw::basic::ValueType::INTEGER:
@@ -424,13 +460,13 @@ namespace daw {
 				}
 			}
 
-			int32_t find_end_of_string( boost::string_ref value ) {
-				int32_t start = 0;
+			size_t find_end_of_string( boost::string_ref value ) {
+				size_t start = 0;
 				if( '"' == value[start] ) {
 					++start;
 				}
-				int32_t quote_counter = 1;
-				for( int32_t pos = start; pos < static_cast<int32_t>(value.size( )); ++pos ) {
+				size_t quote_counter = 1;
+				for( size_t pos = start; pos < value.size( ); ++pos ) {
 					if( '"' == value[pos] ) {
 						if( !(0 != pos && '\\' == value[pos - 1]) ) {
 							--quote_counter;
@@ -443,14 +479,14 @@ namespace daw {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Could not find end of quoted string, not closing quotes" );
 			}
 
-			int32_t find_end_of_bracket( boost::string_ref value ) {
-				int32_t bracket_count = 1;
-				int32_t pos = 0;
+			size_t find_end_of_bracket( boost::string_ref value ) {
+				intmax_t bracket_count = 1;
+				size_t pos = 0;
 				if( ')' == value[pos] ) {
 					return pos;
 				}
 				++pos;
-				for( ; pos < static_cast<int32_t>(value.size( )); ++pos ) {
+				for( ; pos < value.size( ); ++pos ) {
 					if( '(' == value[pos] ) {
 						++bracket_count;
 					} else if( ')' == value[pos] ) {
@@ -463,27 +499,27 @@ namespace daw {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Unclosed bracket found" );
 			}
 
-			int32_t find_end_of_operand( boost::string_ref value ) {
+			size_t find_end_of_operand( boost::string_ref value ) {
 				assert( value.size( ) > 0 );
 
 				const static std::vector<char> end_chars{ ' ', '	', '^', '*', '/', '+', '-', '=', '<', '>', '%' };
-				int32_t bracket_count = 0;
+				intmax_t bracket_count = 0;
 
 				auto has_brackets = false;
 				for( size_t pos = 0; pos < value.size( ); ++pos ) {
 					auto const & current_char = value[pos];
 					if( 0 >= bracket_count ) {
 						if( '"' == current_char ) {
-							throw create_basic_exception( ErrorTypes::SYNTAX, "Unexpected quote \" character at position " + pos );
+							throw create_basic_exception( ErrorTypes::SYNTAX, "Unexpected quote \" character at position " + std::to_string( pos ) );
 						}
 						if( ')' == current_char ) {
-							throw create_basic_exception( ErrorTypes::SYNTAX, "Unexpected close bracket ) character at position " + pos );
+							throw create_basic_exception( ErrorTypes::SYNTAX, "Unexpected close bracket ) character at position " + std::to_string( pos ) );
 						}
 						if( std::end( end_chars ) != std::find( std::begin( end_chars ), std::end( end_chars ), current_char ) ) {
 							return pos - 1;
 						} else if( '(' == current_char ) {
 							if( has_brackets ) {
-								throw create_basic_exception( ErrorTypes::SYNTAX, "Unexpected opening bracket after brackets have closed at position " + pos );
+								throw create_basic_exception( ErrorTypes::SYNTAX, "Unexpected opening bracket after brackets have closed at position " + std::to_string( pos ) );
 							}
 							++bracket_count;
 							has_brackets = true;
@@ -561,9 +597,9 @@ namespace daw {
 
 		Basic::BasicArray::BasicArray( std::vector<size_t> dimensions ) : m_dimensions( dimensions ), m_values( multiply_list( dimensions ) ) { }
 
-		Basic::BasicArray::BasicArray( const BasicArray& other ) : m_dimensions( other.m_dimensions ), m_values( other.m_values ) { }
+		Basic::BasicArray::BasicArray( BasicArray const & other ) : m_dimensions( other.m_dimensions ), m_values( other.m_values ) { }
 
-		Basic::BasicArray::BasicArray( BasicArray&& other ) : m_dimensions( std::move( other.m_dimensions ) ), m_values( std::move( other.m_values ) ) { }
+		Basic::BasicArray::BasicArray( BasicArray && other ) : m_dimensions( std::move( other.m_dimensions ) ), m_values( std::move( other.m_values ) ) { }
 
 		Basic::BasicArray& Basic::BasicArray::operator=(BasicArray other) {
 			m_dimensions = std::move( other.m_dimensions );
@@ -615,22 +651,29 @@ namespace daw {
 		}
 	
 		bool Basic::BasicArray::operator==( BasicArray const & rhs) const {
-			auto compare_function = []( const basic::BasicValue& v1, const basic::BasicValue& v2 ) {
+			auto compare_function = []( basic::BasicValue const & v1, basic::BasicValue const & v2 ) {
 				bool result = v1.first == v2.first;
 				if( result ) {
 					switch( v1.first ) {
 					case ValueType::EMPTY:
 						result &= true;
+						break;
 					case ValueType::BOOLEAN:
 						result &= to_boolean( v1 ) == to_boolean( v2 );
+						break;
 					case ValueType::INTEGER:
 						result &= to_integer( v1 ) == to_integer( v2 );
+						break;
 					case ValueType::REAL:
 						result &= to_real( v1 ) == to_real( v2 );
+						break;
 					case ValueType::STRING:
 						result &= to_string( v1 ) == to_string( v2 );
-					default:
+						break;
+					case ValueType::ARRAY:
 						throw std::runtime_error( "Unimplemented feature" );
+					default:
+						throw std::exception{ };
 					}
 				}
 				return result;
@@ -743,24 +786,24 @@ namespace daw {
 				return operator_rank( oper ) < operator_rank( from_stack );
 			};
 
-			auto is_logical_and = []( boost::string_ref value, int32_t pos, int32_t end ) {
+			auto is_logical_and = []( boost::string_ref val, size_t pos, size_t end ) {
 				std::string const check_text{ "AND" };
-				if( pos + static_cast<int32_t>(check_text.size( )) <= end ) {
-					auto const txt_window = boost::algorithm::to_upper_copy( value.substr( pos, check_text.size( ) ).to_string( ) );
+				if( pos + check_text.size( ) <= end ) {
+					auto const txt_window = to_upper( val.substr( pos, check_text.size( ) ) );
 					if( check_text == txt_window ) {
-						auto ws_check = value[pos + check_text.size( )];
+						auto ws_check = val[pos + check_text.size( )];
 						return ' ' == ws_check || '	' == ws_check;
 					}
 				}
 				return false;
 			};
 
-			auto is_logical_or = []( boost::string_ref value, int32_t pos, int32_t end ) {
+			auto is_logical_or = []( boost::string_ref val, int32_t pos, int32_t end ) {
 				std::string const check_text{ "OR" };
 				if( pos + static_cast<int32_t>(check_text.size( )) <= end ) {
-					auto txt_window = boost::algorithm::to_upper_copy( value.substr( pos, check_text.size( ) ).to_string( ) );
+					auto txt_window = to_upper( val.substr( pos, check_text.size( ) ) );
 					if( check_text == txt_window ) {
-						auto ws_check = value[pos + check_text.size( )];
+						auto ws_check = val[pos + check_text.size( )];
 						return ' ' == ws_check || '	' == ws_check;
 					} 
 				}
@@ -854,7 +897,7 @@ namespace daw {
 						// Pop from operand stack and do operators and push value back to stack
 						BasicValue rhs( pop( operand_stack ) );
 						auto prev_operator( pop( operator_stack ) );
-						BasicValue result( EMPTY_BASIC_VALUE );
+						BasicValue result( EMPTY_BASIC_VALUE( ) );
 						if( is_unary_operator( prev_operator ) ) {
 							result = m_unary_operators[prev_operator]( std::move( rhs ) );
 						} else if( is_binary_operator( prev_operator ) ) {
@@ -898,8 +941,13 @@ namespace daw {
 							case ValueType::REAL:
 								operand_stack.push_back( basic_value_real( std::move( current_operand ) ) );
 								break;
-							default:
+							case ValueType::EMPTY:
+							case ValueType::STRING:
+							case ValueType::BOOLEAN:
+							case ValueType::ARRAY:
 								throw create_basic_exception( ErrorTypes::SYNTAX, "Unknown symbol '" + current_operand.to_string( ) + "'" );
+							default:
+								throw std::exception{ };
 							}
 						}
 					}
@@ -912,7 +960,7 @@ namespace daw {
 			while( !operator_stack.empty( ) ) {
 				auto current_operator = pop( operator_stack );
 				auto rhs = pop( operand_stack );
-				BasicValue result = EMPTY_BASIC_VALUE;
+				BasicValue result = EMPTY_BASIC_VALUE( );
 				if( is_unary_operator( current_operator ) ) {
 					result = m_unary_operators[current_operator]( std::move( rhs ) );
 				} else if( is_binary_operator( current_operator ) ) {
@@ -923,7 +971,7 @@ namespace daw {
 				operand_stack.push_back( result );
 			}
 			if( operand_stack.empty( ) ) {
-				return EMPTY_BASIC_VALUE;
+				return EMPTY_BASIC_VALUE( );
 			}
 			auto current_operand = pop( operand_stack );
 			if( !operand_stack.empty( ) ) {
@@ -937,11 +985,11 @@ namespace daw {
 			return m_values.size( );
 		}
 
-		bool Basic::is_unary_operator( std::string oper ) {
+		bool Basic::is_unary_operator( boost::string_ref oper ) {
 			return key_exists( m_unary_operators, oper );
 		}
 
-		bool Basic::is_binary_operator( std::string oper ) {
+		bool Basic::is_binary_operator( boost::string_ref oper ) {
 			return key_exists( m_binary_operators, oper );
 		}
 
@@ -979,83 +1027,79 @@ namespace daw {
 			return result;
 		}
 
-		BasicValue& Basic::get_variable_constant( std::string name ) {
-			name = boost::algorithm::to_upper_copy( name );
+		BasicValue & Basic::get_variable_constant( boost::string_ref name ) {
 			if( is_constant( name ) ) {
-				return  m_constants[name].value;
+				return  m_constants[name.to_string( )].value;
 			} else if( is_variable( name ) ) {
 				return get_variable( name );
 			}
 			throw create_basic_exception( ErrorTypes::FATAL, "Undefined variable or constant" );
 		}
 
-		void Basic::add_variable( std::string name, BasicValue value ) {
+		void Basic::add_variable( boost::string_ref name, BasicValue value ) {
 			if( is_constant( name ) ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Cannot create a variable that is a system constant" );
 			} else if( is_function( name ) | is_keyword( name ) ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Cannot create a variable with the same name as a system function/keyword" );
 			}
-			m_variables[std::move( name )] = std::move( value );
+			m_variables[name.to_string( )] = std::move( value );
 		}
 
-		void Basic::add_array_variable( std::string name, std::vector<BasicValue> dimensions ) {
+		void Basic::add_array_variable( boost::string_ref name, std::vector<BasicValue> dimensions ) {
 			if( is_constant( name ) ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Cannot create a variable that is a system constant" );
 			} else if( is_function( name ) | is_keyword( name ) ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Cannot create a variable with the same name as a system function/keyword" );
 			}
-			m_arrays[name] = BasicArray{ convert_dimensions( std::move( dimensions ) ) };
+			m_arrays[name.to_string( )] = BasicArray{ convert_dimensions( std::move( dimensions ) ) };
 		}
 
-		void Basic::add_constant( std::string name, std::string description, BasicValue value ) {
+		void Basic::add_constant( boost::string_ref name, std::string description, BasicValue value ) {
 			if( is_function( name ) | is_keyword( name ) ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Cannot create a constant with the same name as a system function/keyword" );
 			}
 			if( key_exists( m_variables, name ) ) {
 				remove_variable( name );
 			}
-			m_constants[std::move( name )] = ConstantType{ std::move( description ), std::move( value ) };
+			m_constants[name.to_string( )] = ConstantType{ std::move( description ), std::move( value ) };
 		}
 
-		bool Basic::is_variable( std::string name ) {
-			name = boost::algorithm::to_upper_copy( std::move( name ) );
+		bool Basic::is_variable( boost::string_ref name ) {
 			return key_exists( m_variables, name ) || is_constant( name );
 		}
 
-		bool Basic::is_constant( std::string name ) {
-			name = boost::algorithm::to_upper_copy( std::move( name ) );
-			return key_exists( m_constants, std::move( name ) );
+		bool Basic::is_constant( boost::string_ref name ) {
+			return key_exists( m_constants, name );
 		}
 
-		bool Basic::is_array( std::string name ) {
-			name = boost::algorithm::to_upper_copy( std::move( name ) );
-			return key_exists( m_arrays, std::move( name ) );
+		bool Basic::is_array( boost::string_ref name ) {
+			return key_exists( m_arrays,  name );
 		}
 
-		void Basic::remove_variable( std::string name, bool throw_on_nonexist ) {
-			auto pos = m_variables.find( boost::algorithm::to_upper_copy( name ) );
+		void Basic::remove_variable( boost::string_ref name, bool throw_on_nonexist ) {
+			auto pos = m_variables.find( to_upper( name ) );
 			if( m_variables.end( ) == pos && throw_on_nonexist ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to delete unknown variable" );
 			}
-			m_variables.erase( std::move( pos ) );
+			m_variables.erase( pos );
 		}
 
-		void Basic::remove_constant( std::string name, bool throw_on_nonexist ) {
-			auto pos = m_constants.find( boost::algorithm::to_upper_copy( name ) );
+		void Basic::remove_constant( boost::string_ref name, bool throw_on_nonexist ) {
+			auto pos = m_constants.find( to_upper( name ) );
 			if( m_constants.end( ) == pos && throw_on_nonexist ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to delete unknown constant" );
 			}
 			m_constants.erase( pos );
 		}
 
-		void Basic::add_function( std::string name, std::string description, BasicFunction func ) {
+		void Basic::add_function( boost::string_ref name, std::string description, BasicFunction func ) {
 			if( "SIN" == name ) {
 				std::cout;
 			}
 			if( is_keyword( name ) ) {
 				throw create_basic_exception( ErrorTypes::FATAL, "Cannot create a function with the same name as a system keyword" );
 			}
-			m_functions[std::move( name )] = FunctionType( std::move( description ), std::move( func ) );
+			m_functions[name.to_string( )] = FunctionType( std::move( description ), std::move( func ) );
 		}
 
 		ProgramType::iterator Basic::find_line( integer line_number ) {
@@ -1065,7 +1109,7 @@ namespace daw {
 			return result;
 		}
 
-		void Basic::add_line( integer line_number, std::string line ) {
+		void Basic::add_line( integer line_number, boost::string_ref line ) {
 			auto pos = find_line( line_number );
 			if( std::end( m_program ) == pos ) {
 				m_program.push_back( make_pair( line_number, line ) );
@@ -1081,32 +1125,30 @@ namespace daw {
 			}
 		}
 
-		bool Basic::is_keyword( std::string name ) {
-			name == boost::algorithm::to_upper_copy( name );
+		bool Basic::is_keyword( boost::string_ref name ) {
 			return key_exists( m_keywords, name );
 		}
 
-		bool Basic::is_function( std::string name ) {
-			name == boost::algorithm::to_upper_copy( name );
+		bool Basic::is_function( boost::string_ref name ) {
 			return key_exists( m_functions, name );
 		}
 
-		BasicValue& Basic::get_array_variable( std::string name, std::vector<BasicValue> params ) {
-			auto& current_array( retrieve_value( m_arrays, std::move( name ) ) );
+		BasicValue & Basic::get_array_variable( boost::string_ref name, std::vector<BasicValue> params ) {
+			auto & current_array( retrieve_value( m_arrays, name ) );
 			return current_array( convert_dimensions( std::move( params ) ) );
 		}
 
-		std::pair<std::string, std::vector<BasicValue>> Basic::split_arrayfunction_from_string( boost::string_ref name, bool throw_on_missing_bracket ) {
+		std::pair<boost::string_ref, std::vector<BasicValue>> Basic::split_arrayfunction_from_string( boost::string_ref name, bool throw_on_missing_bracket ) {
 			auto bracket_pos = name.find( '(' );
 			if( std::string::npos == bracket_pos ) {
 				if( !throw_on_missing_bracket ) {
-					return std::make_pair( name.to_string( ), std::vector<BasicValue>( ) );
+					return std::make_pair( name, std::vector<BasicValue>( ) );
 				} else {
 					throw create_basic_exception( ErrorTypes::FATAL, "Expected to find start bracket but none found." );
 				}
 			}
-			int32_t lb_count = std::count( std::begin( name ), std::end( name ), '(' );
-			int32_t rb_count = std::count( std::begin( name ), std::end( name ), ')' );
+			auto lb_count = std::count( std::begin( name ), std::end( name ), '(' );
+			auto rb_count = std::count( std::begin( name ), std::end( name ), ')' );
 			if( lb_count != rb_count ) {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "Unclosed bracket on function '" + name.to_string( ) + "'" );
 			}
@@ -1115,20 +1157,20 @@ namespace daw {
 
 			auto param_str = name.substr( bracket_pos + 1, bracket_end - bracket_pos - 1 );
 			auto param_values = evaluate_parameters( param_str );
-			return { array_name.to_string( ), std::move( param_values ) };
+			return { array_name, std::move( param_values ) };
 		}
 
-		BasicValue& Basic::get_array_variable( std::string name ) {
-			auto nameparam = split_arrayfunction_from_string( std::move( name ) );
-			return get_array_variable( std::move( nameparam.first ), std::move( nameparam.second ) );
+		BasicValue & Basic::get_array_variable( boost::string_ref name ) {
+			auto nameparam = split_arrayfunction_from_string( name );
+			return get_array_variable( nameparam.first, std::move( nameparam.second ) );
 		}
 
-		BasicValue& Basic::get_variable( std::string name ) {
+		BasicValue & Basic::get_variable( boost::string_ref name ) {
 			// Parse brackets and return individual variable
-			bool is_array_value = false;
-			int32_t brackets_start = 0;
-			int32_t brackets_end = 0;
-			for( int32_t pos = 0; pos < static_cast<int32_t>(name.size( )); ++pos ) {
+			auto is_array_value = false;
+			size_t brackets_start = 0;
+			size_t brackets_end = 0;
+			for( size_t pos = 0; pos <name.size( ); ++pos ) {
 				if( '(' == name[pos] ) {
 					brackets_start = pos;
 					brackets_end = find_end_of_bracket( name.substr( pos ) );
@@ -1142,7 +1184,7 @@ namespace daw {
 				auto params = evaluate_parameters( std::move( params_str ) );
 				return get_array_variable( array_name, std::move( params ) );
 			} else {
-				return retrieve_value( m_variables, std::move( name ) );
+				return retrieve_value( m_variables, name );
 			}
 		}
 
@@ -1188,8 +1230,7 @@ namespace daw {
 			auto keys = get_keys( m_keywords );
 			std::sort( std::begin( keys ), std::end( keys ) );
 			for( auto& current_keyword_name : keys ) {
-				const auto& current_keyword = m_keywords[current_keyword_name];
-				ss << current_keyword_name << "\n"; // ": " << current_keyword.description << "\n";
+				ss << current_keyword_name << "\n"; // ": " << m_keywords[current_keyword_name].description << "\n";
 			}
 			return ss.str( );
 		}
@@ -1224,21 +1265,17 @@ namespace daw {
 			return ss.str( );
 		}
 
-		BasicValue Basic::exec_function( std::string name, std::vector<BasicValue> arguments ) {
-			name = boost::algorithm::to_upper_copy( std::move( name ) );
-			const auto& func = m_functions[name].func;
+		BasicValue Basic::exec_function( boost::string_ref name, std::vector<BasicValue> arguments ) {
+			const auto& func = m_functions[to_upper( name )].func;
 			if( !func ) {
-				throw create_basic_exception( ErrorTypes::FATAL, "Expected function '" + name + "' to exist.  Could not find it" );
+				throw create_basic_exception( ErrorTypes::FATAL, "Expected function '" + name.to_string( ) + "' to exist.  Could not find it" );
 			}
 			return func( std::move( arguments ) );
 		}
 
-		bool Basic::let_helper( std::string parse_string, bool show_error ) {
+		bool Basic::let_helper( boost::string_ref parse_string, bool show_error ) {
 			auto parsed_string = split_in_two_on_char( parse_string, '=' );
-			std::string str_value;
-			if( 2 == parsed_string.size( ) ) {
-				str_value = parsed_string[1];
-			} else {
+			if( 2 != parsed_string.size( ) ) {
 				if( show_error ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "LET requires a variable and an assignment" );
 				} else {
@@ -1252,9 +1289,9 @@ namespace daw {
 					return false;
 				}
 			}
-			auto& var = get_variable( parsed_string[0] );
+			auto & var = get_variable( parsed_string[0] );
 
-			var = evaluate( str_value );
+			var = evaluate( parsed_string[1] );
 
 			return true;
 		}
@@ -1270,8 +1307,14 @@ namespace daw {
 					return basic_value_integer( to_integer( std::move( lhs ) ) * to_integer( std::move( rhs ) ) );
 				case ValueType::REAL:
 					return basic_value_real( to_numeric( std::move( lhs ) ) * to_numeric( std::move( rhs ) ) );
-				default:
+				case ValueType::ARRAY:
+				case ValueType::BOOLEAN:
+				case ValueType::EMPTY:
+				case ValueType::STRING:
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to multiply non-numeric types" );
+				default:
+					throw std::exception{ };
+
 				}
 			};
 
@@ -1282,8 +1325,13 @@ namespace daw {
 					return basic_value_integer( to_integer( std::move( lhs ) ) / to_integer( std::move( rhs ) ) );
 				case ValueType::REAL:
 					return basic_value_real( to_numeric( std::move( lhs ) ) / to_numeric( std::move( rhs ) ) );
-				default:
+				case ValueType::ARRAY:
+				case ValueType::BOOLEAN:
+				case ValueType::EMPTY:
+				case ValueType::STRING:
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to multiply non-numeric types" );
+				default:
+					throw std::exception{ };
 				}
 			};
 
@@ -1299,8 +1347,12 @@ namespace daw {
 					auto rhs_str = remove_outer_quotes( to_string( std::move( rhs ) ) );
 					return basic_value_string( lhs_str + rhs_str );
 				}
-				default:
+				case ValueType::ARRAY:
+				case ValueType::BOOLEAN:
+				case ValueType::EMPTY:
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to add non-numeric types" );
+				default:
+					throw std::exception{ };
 				}
 			};
 
@@ -1311,8 +1363,13 @@ namespace daw {
 					return basic_value_integer( to_integer( std::move( lhs ) ) - to_integer( std::move( rhs ) ) );
 				case ValueType::REAL:
 					return basic_value_real( to_numeric( std::move( lhs ) ) - to_numeric( std::move( rhs ) ) );
+				case ValueType::ARRAY:
+				case ValueType::BOOLEAN:
+				case ValueType::EMPTY:
+				case ValueType::STRING:
+					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to subtract non-numeric types" );
 				default:
-					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to multiply non-numeric types" );
+					throw std::exception{ };
 				}
 			};
 
@@ -1325,8 +1382,14 @@ namespace daw {
 				switch( result_type ) {
 				case ValueType::INTEGER:
 					return basic_value_integer( to_integer( std::move( lhs ) ) % to_integer( std::move( rhs ) ) );
-				default:
+				case ValueType::ARRAY:
+				case ValueType::BOOLEAN:
+				case ValueType::EMPTY:
+				case ValueType::STRING:
+				case ValueType::REAL:
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to do modular arithmetic with non-integers" );
+				default:
+					throw std::exception{ };
 				}
 			};
 
@@ -1353,8 +1416,10 @@ namespace daw {
 				case ValueType::STRING:
 					result = 0 == to_string( lhs ).compare( to_string( rhs ) );
 					break;
-				default:
+				case ValueType::ARRAY:
 					throw create_basic_exception( ErrorTypes::FATAL, "Unknown ValueType" );
+				default:
+					throw std::exception{ };
 				}
 				return basic_value_boolean( result );
 			};
@@ -1382,8 +1447,10 @@ namespace daw {
 				case ValueType::STRING:
 					result = 0 < to_string( lhs ).compare( to_string( rhs ) );
 					break;
-				default:
+				case ValueType::ARRAY:
 					throw create_basic_exception( ErrorTypes::FATAL, "Unknown ValueType" );
+				default:
+					throw std::exception{ };
 				}
 				return basic_value_boolean( result );
 			};
@@ -1411,8 +1478,10 @@ namespace daw {
 				case ValueType::STRING:
 					result = 0 <= to_string( lhs ).compare( to_string( rhs ) );
 					break;
-				default:
+				case ValueType::ARRAY:
 					throw create_basic_exception( ErrorTypes::FATAL, "Unknown ValueType" );
+				default:
+					throw std::exception{ };
 				}
 				return basic_value_boolean( result );
 			};
@@ -1440,8 +1509,10 @@ namespace daw {
 				case ValueType::STRING:
 					result = 0 > to_string( lhs ).compare( to_string( rhs ) );
 					break;
-				default:
+				case ValueType::ARRAY:
 					throw create_basic_exception( ErrorTypes::FATAL, "Unknown ValueType" );
+				default:
+					throw std::exception{ };
 				}
 				return basic_value_boolean( result );
 			};
@@ -1469,8 +1540,10 @@ namespace daw {
 				case ValueType::STRING:
 					result = 0 >= to_string( lhs ).compare( to_string( rhs ) );
 					break;
-				default:
+				case ValueType::ARRAY:
 					throw create_basic_exception( ErrorTypes::FATAL, "Unknown ValueType" );
+				default:
+					throw std::exception{ };
 				}
 				return basic_value_boolean( result );
 			};
@@ -1590,7 +1663,7 @@ namespace daw {
 					return basic_value_integer( std::move( int_param ) );
 				} else {
 					auto dbl_param = to_numeric( value[0] );
-					auto result = abs( dbl_param );
+					auto result = fabs( dbl_param );
 					return basic_value_real( std::move( result ) );
 				}
 			} );
@@ -1761,8 +1834,14 @@ namespace daw {
 					return basic_value_integer( to_integer( std::move( str_value ) ) );
 				case ValueType::REAL:
 					return basic_value_real( to_real( std::move( str_value ) ) );
+				case ValueType::ARRAY:
+				case ValueType::BOOLEAN:
+				case ValueType::EMPTY:
+				case ValueType::STRING:
+					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to convert a string of non-numbers to a number" );
+				default:
+					throw std::exception{ };
 				}
-				throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to convert a string of non-numbers to a number" );
 			} );
 
 			add_function( "ASC", "ASC( s ) -> Returns the ASCII code of the first character of a string", [&]( std::vector<BasicValue> value ) {
@@ -1804,12 +1883,12 @@ namespace daw {
 			// Keywords
 			//////////////////////////////////////////////////////////////////////////
 
-			m_keywords["NEW"] = [&]( std::string parse_string )-> bool {
+			m_keywords["NEW"] = [&]( boost::string_ref ) {
 				reset( );
 				return true;
 			};
 
-			m_keywords["CLR"] = [&]( std::string parse_string )-> bool {
+			m_keywords["CLR"] = [&]( boost::string_ref parse_string ) {
 				if( parse_string.empty( ) ) {
 					clear_variables( );
 				} else {
@@ -1818,7 +1897,7 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["DELETE"] = [&]( std::string parse_string ) -> bool {
+			m_keywords["DELETE"] = [&]( boost::string_ref parse_string ) {
 				if( ValueType::INTEGER != get_value_type( parse_string ) ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "DELETE requires an INTEGER parameter for the line number to delete" );
 				}
@@ -1826,7 +1905,7 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["DIM"] = [&]( std::string parse_string ) mutable -> bool {
+			m_keywords["DIM"] = [&]( boost::string_ref parse_string ) {
 				auto var_name_and_param = split_in_two_on_char( parse_string, '(' );
 				if( 2 != var_name_and_param.size( ) ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Could not find parameters surrounded by ( )" );
@@ -1844,7 +1923,7 @@ namespace daw {
 				// 					dim_2 = to_integer( params[1] );
 				// 				}
 
-				auto var_name = boost::algorithm::to_upper_copy( boost::algorithm::trim_copy( var_name_and_param[0] ) );
+				auto var_name = var_name_and_param[0];
 				if( is_keyword( var_name ) || is_function( var_name ) || is_constant( var_name ) ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Cannot create an array with the same name as a keyword or function" );
 				}
@@ -1859,11 +1938,11 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["LET"] = [&]( std::string parse_string ) mutable -> bool {
+			m_keywords["LET"] = [&]( boost::string_ref parse_string ) {
 				return let_helper( parse_string );
 			};
 
-			m_keywords["STOP"] = [&]( std::string ) -> bool {
+			m_keywords["STOP"] = [&]( boost::string_ref ) {
 				if( RunMode::IMMEDIATE == m_run_mode ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to STOP from outside a program" );
 				}
@@ -1872,7 +1951,7 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["CONT"] = [&]( std::string ) -> bool {
+			m_keywords["CONT"] = [&]( boost::string_ref ) {
 				if( RunMode::DEFERRED == m_run_mode ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to CONT from inside a program" );
 				}
@@ -1880,7 +1959,7 @@ namespace daw {
 				return m_basic->continue_run( );
 			};
 
-			m_keywords["GOTO"] = [&]( std::string parse_string ) -> bool {
+			m_keywords["GOTO"] = [&]( boost::string_ref parse_string ) {
 				if( RunMode::IMMEDIATE == m_run_mode ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to GOTO from outside a program" );
 				}
@@ -1894,7 +1973,7 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["GOSUB"] = [&]( std::string parse_string ) -> bool {
+			m_keywords["GOSUB"] = [&]( boost::string_ref parse_string ) {
 				// Store program line on stack and then call goto
 				if( RunMode::IMMEDIATE == m_run_mode ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to GOSUB from outside a program" );
@@ -1903,7 +1982,7 @@ namespace daw {
 				return m_keywords["GOTO"]( parse_string );
 			};
 
-			m_keywords["RETURN"] = [&]( std::string parse_string ) -> bool {
+			m_keywords["RETURN"] = [&]( boost::string_ref parse_string ) {
 				// Pop program line from stack and then run GOTO
 				if( RunMode::IMMEDIATE == m_run_mode ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to RETURN from outside a program" );
@@ -1916,30 +1995,30 @@ namespace daw {
 
 			};
 
-			m_keywords["PRINT"] = [&]( std::string parse_string ) mutable -> bool {
-				boost::algorithm::trim( parse_string );
+			m_keywords["PRINT"] = [&]( boost::string_ref parse_string ) {
+				parse_string = trim( parse_string );
 				if( parse_string.empty( ) ) {
 					std::cout << std::endl;
 					return true;
 				}
 
 				std::string evaluated_value = to_string( evaluate( std::move( parse_string ) ) );
-				std::cout << std::move( evaluated_value ) << std::endl;
+				std::cout << evaluated_value << "\n";
 				return true;
 			};
 
-			m_keywords["QUIT"] = [&]( std::string ) -> bool {
+			m_keywords["QUIT"] = [&]( boost::string_ref ) {
 				std::cout << "Good bye\n" << std::endl;
 				m_exiting = true;
 				return true;
 			};
 
-			m_keywords["EXIT"] = [&]( std::string ) -> bool {
+			m_keywords["EXIT"] = [&]( boost::string_ref ) {
 				m_exiting = true;
 				return true;
 			};
 
-			m_keywords["END"] = [&]( std::string ) -> bool {
+			m_keywords["END"] = [&]( boost::string_ref ) {
 				if( RunMode::IMMEDIATE == m_run_mode ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Attempt to END from outside a program" );
 				}
@@ -1947,14 +2026,14 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["REM"] = [&]( std::string ) -> bool {
+			m_keywords["REM"] = []( boost::string_ref ) {
 				// truly do nothing
 				return true;
 			};
 
-			m_keywords["LIST"] = [&]( std::string ) -> bool {
+			m_keywords["LIST"] = [&]( boost::string_ref ) {
 				sort_program_code( );
-				for( auto& current_line : m_program ) {
+				for( auto const & current_line : m_program ) {
 					if( 0 <= current_line.first ) {
 						std::cout << current_line.first << "	" << current_line.second << "\n";
 					}
@@ -1963,7 +2042,7 @@ namespace daw {
 				return true;
 			};
 
-			m_keywords["RUN"] = [&]( std::string parse_line ) -> bool {
+			m_keywords["RUN"] = [&]( boost::string_ref parse_line ) {
 				sort_program_code( );
 				integer line_number = -1;
 				if( !parse_line.empty( ) && ValueType::INTEGER == get_value_type( parse_line ) ) {
@@ -1977,23 +2056,23 @@ namespace daw {
 				return m_basic->run( line_number );
 			};
 
-			m_keywords["VARS"] = [&]( std::string ) -> bool {
+			m_keywords["VARS"] = [&]( boost::string_ref ) {
 				std::cout << "Constants:\n" << list_constants( ) << "\n";
 				std::cout << "\nVariables:\n" << list_variables( ) << "\n";
 				return true;
 			};
 
-			m_keywords["FUNCTIONS"] = [&]( std::string ) -> bool {
+			m_keywords["FUNCTIONS"] = [&]( boost::string_ref ) {
 				std::cout << list_functions( ) << std::endl;
 				return true;
 			};
 
-			m_keywords["KEYWORDS"] = [&]( std::string ) -> bool {
+			m_keywords["KEYWORDS"] = [&]( boost::string_ref ) {
 				std::cout << list_keywords( ) << std::endl;
 				return true;
 			};
 
-			m_keywords["THEN"] = [&]( std::string ) -> bool {
+			m_keywords["THEN"] = [&]( boost::string_ref ) -> bool {
 				throw create_basic_exception( ErrorTypes::SYNTAX, "THEN is invalid without a preceeding IF and condition" );
 			};
 
@@ -2025,26 +2104,25 @@ namespace daw {
 			// 				return true;
 			// 			};
 
-			m_keywords["IF"] = [&]( std::string parse_string ) -> bool {
+			m_keywords["IF"] = [&]( boost::string_ref parse_string ) {
 				// IF <CONDITION> THEN <statement>
 				// IF <CONDITION> THEN <line_number>
 				// IF <CONDITION> GOTO <line_number>
 
 				// Find end of condition
-				integer start_of_thengoto_clause = std::string::npos;
+				size_t start_of_thengoto_clause = std::string::npos;
 				{
-					auto is_then_goto = [&]( int32_t pos ) -> bool {
-						const std::vector<std::string> strings_to_find{ "THEN", "GOTO" };
-						for( auto& string_to_find : strings_to_find ) {
-							if( pos + static_cast<int32_t>(string_to_find.size( )) < parse_string[pos] ) {
-								auto current_string = boost::algorithm::to_upper_copy( parse_string.substr( pos, string_to_find.size( ) ) );
-								return string_to_find == current_string;
+					auto is_then_goto = [&]( size_t pos ) {
+						std::vector<std::string> const strings_to_find{ "THEN", "GOTO" };
+						for( auto & string_to_find : strings_to_find ) {
+							if( pos + string_to_find.size( ) < parse_string[pos] ) {
+								return string_to_find == to_upper( parse_string.substr( pos, string_to_find.size( ) ) );
 							}
 						}
 						return false;
 					};
 
-					for( int32_t pos = 0; pos < static_cast<int32_t>(parse_string.size( )); ++pos ) {
+					for( size_t pos = 0; pos < parse_string.size( ); ++pos ) {
 						const auto current_char = parse_string[pos];
 						if( '"' == current_char ) {
 							pos += find_end_of_string( parse_string.substr( pos ) );
@@ -2059,7 +2137,7 @@ namespace daw {
 						throw create_basic_exception( ErrorTypes::SYNTAX, "Unable to find end of condition in IF keyword" );
 					}
 				}
-				std::string condition = parse_string.substr( 0, start_of_thengoto_clause );
+				auto condition = parse_string.substr( 0, start_of_thengoto_clause );
 				if( to_boolean( evaluate( condition ) ) ) {
 					auto str_action = parse_string.substr( start_of_thengoto_clause + 4 );
 					if( ValueType::INTEGER == get_value_type( str_action ) ) {
@@ -2138,7 +2216,12 @@ namespace daw {
 			return true;
 		}
 
-		Basic::Basic( ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {
+		Basic::Basic( ): 
+				m_basic{ nullptr },
+				m_program_it( std::end( m_program ) ), 
+				m_run_mode( RunMode::IMMEDIATE ),
+				m_exiting( false ),
+				m_has_syntax_error( false ) {
 			init( );
 		}
 
@@ -2163,7 +2246,12 @@ namespace daw {
 			return tokens;
 		}
 
-		Basic::Basic( std::string program_code ): m_run_mode( RunMode::IMMEDIATE ), m_program_it( std::end( m_program ) ), m_has_syntax_error( false ), m_exiting( false ), m_basic( nullptr ) {
+		Basic::Basic( std::string program_code ): 
+				m_basic( nullptr ),
+				m_program_it( std::end( m_program ) ),
+				m_run_mode( RunMode::IMMEDIATE ), 
+				m_exiting( false ), 
+				m_has_syntax_error( false ) {
 			init( );
 			for( auto current_line : split( program_code, '\n' ) ) {
 				parse_line( current_line );
@@ -2189,7 +2277,7 @@ namespace daw {
 			throw std::runtime_error( "Unknown error type tried to be thrown" );
 		}
 
-		bool Basic::parse_line( const std::string& parse_string, bool show_ready ) {
+		bool Basic::parse_line( boost::string_ref parse_string, bool show_ready ) {
 			m_exiting = false;
 			auto parsed_string( split_in_two_on_char( parse_string, ' ' ) );
 			try {
@@ -2206,13 +2294,13 @@ namespace daw {
 					}
 					return true;
 				} else if( ValueType::STRING == value_type ) {
-					if( boost::algorithm::trim_copy( parse_string ).empty( ) ) {
+					if( trim( parse_string ).empty( ) ) {
 						return true;
 					}
 
 					// Except within quoted areas, split string on colon : boundaries 
 	
-					std::vector<std::string> statements;
+					std::vector<boost::string_ref> statements;
 					{
 						size_t last_pos = 0;
 						size_t pos = 0;
@@ -2235,12 +2323,12 @@ namespace daw {
 					}
 
 					for( auto current_statement : statements ) {
-						std::string params;
+						boost::string_ref params;
 						parsed_string = split_in_two_on_char( current_statement, ' ' );
 						if( 2 == parsed_string.size( ) ) {
 							params = parsed_string[1];
 						}
-						auto keyword = boost::algorithm::to_upper_copy( parsed_string[0] );
+						auto keyword = to_upper( parsed_string[0] );
 						bool result = false;
 						if( !is_keyword( keyword ) ) {
 							// Try assignment if the above fails
@@ -2316,22 +2404,26 @@ namespace daw {
 
 		namespace {
 			struct for_loop_parts_string {
-				std::string counter_variable;
-				std::string start_value;
-				std::string end_value;
-				std::string step_value;
+				boost::string_ref counter_variable;
+				boost::string_ref start_value;
+				boost::string_ref end_value;
+				boost::string_ref step_value;
 			};
 
 			struct for_loop_parts {
-				std::string counter_variable;
+				boost::string_ref counter_variable;
 				BasicValue start_value;
 				BasicValue end_value;
 				BasicValue step_value;
 				for_loop_parts( ) = delete;
-				for_loop_parts( for_loop_parts_string&& value ): counter_variable( std::move( value.counter_variable ) ), start_value( basic::basic_value_numeric( std::move( value.start_value ) ) ), end_value( basic::basic_value_numeric( std::move( value.end_value ) ) ), step_value( basic::basic_value_numeric( std::move( value.step_value ) ) ) { }
+				for_loop_parts( for_loop_parts_string&& value ): 
+						counter_variable( value.counter_variable ), 
+						start_value( basic::basic_value_numeric( std::move( value.start_value ) ) ), 
+						end_value( basic::basic_value_numeric( std::move( value.end_value ) ) ), 
+						step_value( basic::basic_value_numeric( std::move( value.step_value ) ) ) { }
 			};
 
-			for_loop_parts_string parse_for_loop( std::string for_loop ) {
+			for_loop_parts_string parse_for_loop( boost::string_ref  for_loop ) {
 				// {FOR<WS>}Variable[WS]=<evaluate start><WS>TO<WS><evaluate end>[<WS>STEP<evaluate step>]
 				// { } - denotes already parsed away
 				auto statement_parts = split_in_two_on_char( for_loop, '=' );
@@ -2349,7 +2441,12 @@ namespace daw {
 
 		Basic::LoopStackType::LoopType::~LoopType( ) { };
 
-		Basic::LoopStackType::ForLoop::ForLoop( std::string variable_name, BasicValue start_value, BasicValue end_value, BasicValue step_value ): Basic::LoopStackType::LoopType( ), m_variable_name( variable_name ), m_start_value( start_value ), m_end_value( end_value ), m_step_value( step_value ) {
+		Basic::LoopStackType::ForLoop::ForLoop( boost::string_ref variable_name, BasicValue start_value, BasicValue end_value, BasicValue step_value ): 
+				Basic::LoopStackType::LoopType( ), 
+				m_variable_name( variable_name.to_string( ) ), 
+				m_start_value( start_value ), 
+				m_end_value( end_value ),
+				m_step_value( step_value ) {
 			daw::exception::syntax_errror_on_false( is_numeric( start_value ), "Start Value must be numeric" );
 			daw::exception::syntax_errror_on_false( is_numeric( end_value ), "End Value must be numeric" );
 			daw::exception::syntax_errror_on_false( is_numeric( step_value ), "Step Value must be numeric" );
@@ -2357,7 +2454,7 @@ namespace daw {
 
 		std::shared_ptr<Basic::LoopStackType::LoopType> Basic::LoopStackType::ForLoop::create_for_loop( ProgramType::iterator program_line ) {
 			auto parts_of_for_loop = for_loop_parts( parse_for_loop( program_line->second ) );
-			return std::shared_ptr<LoopType>( new ForLoop( std::move( parts_of_for_loop.counter_variable ), std::move( parts_of_for_loop.start_value ), std::move( parts_of_for_loop.end_value ), std::move( parts_of_for_loop.step_value ) ) );
+			return std::shared_ptr<LoopType>( new ForLoop( parts_of_for_loop.counter_variable, parts_of_for_loop.start_value, parts_of_for_loop.end_value, parts_of_for_loop.step_value ) );
 		}
 
 		bool Basic::LoopStackType::ForLoop::can_enter_loop_body( ) {

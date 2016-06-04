@@ -45,12 +45,11 @@ namespace daw {
 		using BasicFunction = std::function<BasicValue( std::vector<BasicValue> )>;
 		using BasicUnaryOperand = std::function<BasicValue( BasicValue )>;
 		using BasicBinaryOperand = std::function<BasicValue( BasicValue, BasicValue )>;
-		using BasicKeyword = std::function<bool( std::string )>;
-		using ProgramLine = std::pair<integer, std::string>;
+		using BasicKeyword = std::function<bool( boost::string_ref )>;
+		using ProgramLine = std::pair<integer, boost::string_ref>;
 		using ProgramType = std::vector<ProgramLine>;
 		
-		class BasicException: public std::runtime_error {
-		public:
+		struct BasicException: public std::runtime_error {
 			BasicException( ) = delete;
 			~BasicException( );
 			BasicException( BasicException const & ) = default;
@@ -58,10 +57,10 @@ namespace daw {
 			BasicException & operator=( BasicException const & ) = default;
 			BasicException & operator=( BasicException && ) = default;
 
-			explicit BasicException( const std::string& msg, ErrorTypes errorType ): runtime_error( msg ) { }
-			explicit BasicException( const char* msg, ErrorTypes errorType ): runtime_error( msg ) { }
+			explicit BasicException( std::string const & msg, ErrorTypes errorType );
+			explicit BasicException( char const * msg, ErrorTypes errorType );
 			ErrorTypes error_type;
-		};
+		};	// struct BasicException
 		
 		class Basic {
 		private:
@@ -85,21 +84,21 @@ namespace daw {
 			public:
 				BasicArray( );
 				BasicArray( std::vector<size_t> dimensions );
-				BasicArray( const BasicArray& other );
-				BasicArray( BasicArray&& other );
+				BasicArray( BasicArray const & other );
+				BasicArray( BasicArray && other );
 
-				BasicArray& operator=(BasicArray other);
-				bool operator==(const BasicArray& rhs) const;
+				BasicArray& operator=( BasicArray other );
+				bool operator==( BasicArray const & rhs ) const;
 
-				BasicValue& operator() ( std::vector<size_t> dimensions );
-				const BasicValue& operator() ( std::vector<size_t> dimensions ) const;
+				BasicValue& operator( )( std::vector<size_t> dimensions );
+				BasicValue const & operator( )( std::vector<size_t> dimensions ) const;
 
 				std::vector<size_t> dimensions( ) const;
 				size_t total_items( ) const;
 			};	// class BasicArray
 		
 			std::unique_ptr<Basic> m_basic;
-			std::unordered_map<std::string, std::function<bool( std::string )>> m_keywords;
+			std::unordered_map<std::string, std::function<bool( boost::string_ref )>> m_keywords;
 			std::unordered_map<std::string, BasicBinaryOperand> m_binary_operators;
 			std::unordered_map<std::string, BasicUnaryOperand> m_unary_operators;
 			std::unordered_map<std::string, BasicValue> m_variables;
@@ -122,7 +121,7 @@ namespace daw {
 					daw::MostlyImmutable<BasicValue> m_start_value;
 					daw::MostlyImmutable<BasicValue> m_end_value;
 					daw::MostlyImmutable<BasicValue> m_step_value;
-					ForLoop( std::string variable_name, BasicValue start_value, BasicValue end_value, BasicValue step_value );
+					ForLoop( boost::string_ref variable_name, BasicValue start_value, BasicValue end_value, BasicValue step_value );
 				public:
 					static std::shared_ptr<LoopType> create_for_loop( ProgramType::iterator program_line );
 					bool can_enter_loop_body( ) override;
@@ -164,11 +163,11 @@ namespace daw {
 			std::vector<BasicValue> evaluate_parameters( boost::string_ref value );
 
 			BasicException create_basic_exception( ErrorTypes error_type, std::string msg );
-			BasicValue exec_function( std::string name, std::vector<BasicValue> arguments );
-			BasicValue& get_variable( std::string name );
-			BasicValue& get_array_variable( std::string name, std::vector<BasicValue> params );
-			BasicValue& get_array_variable( std::string name );
-			std::pair<std::string, std::vector<BasicValue>> split_arrayfunction_from_string( boost::string_ref value, bool throw_on_missing_bracket = true );
+			BasicValue exec_function( boost::string_ref name, std::vector<BasicValue> arguments );
+			BasicValue & get_variable( boost::string_ref name );
+			BasicValue & get_array_variable( boost::string_ref name, std::vector<BasicValue> params );
+			BasicValue & get_array_variable( boost::string_ref name );
+			std::pair<boost::string_ref, std::vector<BasicValue>> split_arrayfunction_from_string( boost::string_ref value, bool throw_on_missing_bracket = true );
 			ProgramType m_program;
 			ProgramType::iterator find_line( integer line_number );
 			ProgramType::iterator first_line( );
@@ -179,16 +178,16 @@ namespace daw {
 
 			bool continue_run( );
 
-			bool is_array( std::string name );
-			bool is_binary_operator( std::string oper );
-			bool is_unary_operator( std::string oper );
-			bool let_helper( std::string parse_string, bool show_error = true );
+			bool is_array( boost::string_ref name );
+			bool is_binary_operator( boost::string_ref oper );
+			bool is_unary_operator( boost::string_ref oper );
+			bool let_helper( boost::string_ref parse_string, bool show_error = true );
 			bool m_exiting;
 			bool m_has_syntax_error;
 			bool run( integer line_number = -1 );
 			static std::vector<std::string> split( std::string text, std::string delimiter );
 			static std::vector<std::string> split( std::string text, char delimiter );
-			void add_array_variable( std::string name, std::vector<BasicValue> dimensions );
+			void add_array_variable( boost::string_ref name, std::vector<BasicValue> dimensions );
 			void clear_program( );
 			void clear_variables( );
 			void init( );
@@ -205,20 +204,20 @@ namespace daw {
 			std::string list_keywords( );
 			std::string list_variables( );
 			BasicValue evaluate( boost::string_ref value );
-			BasicValue& get_variable_constant( std::string name );
-			bool is_constant( std::string name );
-			bool is_function( std::string name );
-			bool is_keyword( std::string name );
-			bool is_variable( std::string name );
-			bool parse_line( const std::string& parse_string, bool show_ready = true );
-			void add_constant( std::string name, std::string description, BasicValue value );
-			void add_function( std::string name, std::string description, BasicFunction func );
-			void add_line( integer line_number, std::string line );
-			void add_variable( std::string name, BasicValue value );
-			void remove_array( std::string name, bool throw_on_nonexist = true );
-			void remove_constant( std::string name, bool throw_on_nonexist );
+			BasicValue& get_variable_constant( boost::string_ref name );
+			bool is_constant( boost::string_ref name );
+			bool is_function( boost::string_ref name );
+			bool is_keyword( boost::string_ref name );
+			bool is_variable( boost::string_ref name );
+			bool parse_line( boost::string_ref parse_string, bool show_ready = true );
+			void add_constant( boost::string_ref name, std::string description, BasicValue value );
+			void add_function( boost::string_ref name, std::string description, BasicFunction func );
+			void add_line( integer line_number, boost::string_ref line );
+			void add_variable( boost::string_ref name, BasicValue value );
+			void remove_array( boost::string_ref name, bool throw_on_nonexist = true );
+			void remove_constant( boost::string_ref name, bool throw_on_nonexist );
 			void remove_line( integer line );
-			void remove_variable( std::string name, bool throw_on_nonexist = true );
+			void remove_variable( boost::string_ref name, bool throw_on_nonexist = true );
 		};
 	}
 }
