@@ -78,6 +78,12 @@ namespace {
 		} );
 		return result;
 	}
+
+	template<typename F>
+	bool almost_equal( F a, F b ) {
+  		return std::nextafter(a, std::numeric_limits<F>::lowest()) <= b && std::nextafter(a, std::numeric_limits<F>::max()) >= b;
+	}
+
 }	// namespace anonymous
 
 namespace daw {
@@ -176,13 +182,11 @@ namespace daw {
 				static const auto loc = std::locale( locale_str );
 				static const charT decimal_point = std::use_facet< std::numpunct<charT>>( loc ).decimal_point( );
 
-				auto is_negative = false;
 				auto has_decimal = false;
 
 				size_t startpos = 0;
 
 				if( '-' == value[startpos] ) {
-					is_negative = true;
 					startpos = 1;
 				}
 
@@ -298,11 +302,13 @@ namespace daw {
 				return BasicValue { ValueType::STRING, boost::any( value.to_string( ) ) };
 			}
 
+			/*
 			std::string to_string( integer value ) {
 				std::stringstream ss;
 				ss << value;
 				return ss.str( );
 			}
+			*/
 
 			std::string to_string( BasicValue value ) {
 				std::stringstream ss;
@@ -446,6 +452,7 @@ namespace daw {
 			//////////////////////////////////////////////////////////////////////////
 			/// summary: Makes a value from a single token
 			//////////////////////////////////////////////////////////////////////////
+			/*
 			BasicValue make_value( std::string value ) {
 				boost::algorithm::trim( value );
 				switch( get_value_type( value ) ) {
@@ -457,10 +464,14 @@ namespace daw {
 					return basic_value_integer( std::move( value ) );
 				case daw::basic::ValueType::REAL:
 					return basic_value_real( std::move( value ) );
-				default:
+				case daw::basic::ValueType::ARRAY:
+				case daw::basic::ValueType::BOOLEAN:
 					throw create_basic_exception( ErrorTypes::FATAL, "Unknown value type" );
+				default:
+					throw std::exception{ };
 				}
 			}
+			*/
 
 			size_t find_end_of_string( boost::string_ref value ) {
 				size_t start = 0;
@@ -585,7 +596,9 @@ namespace daw {
 			std::vector<size_t> convert_dimensions( std::vector<BasicValue> dimensions ) {
 				std::vector<size_t> index;
 				for( const auto& value : dimensions ) {
-					index.push_back( to_integer( value ) );
+					auto tmp = to_integer( value );
+					assert( tmp >= 0 );
+					index.push_back( static_cast<size_t>( tmp ) );
 				}
 				return index;
 			}
@@ -667,7 +680,7 @@ namespace daw {
 						result &= to_integer( v1 ) == to_integer( v2 );
 						break;
 					case ValueType::REAL:
-						result &= to_real( v1 ) == to_real( v2 );
+						result &= almost_equal( to_real( v1 ), to_real( v2 ) );
 						break;
 					case ValueType::STRING:
 						result &= to_string( v1 ) == to_string( v2 );
@@ -878,7 +891,7 @@ explicit_operator:
 						// Check for unary negation.
 						if( operator_stack.empty( ) && operand_stack.empty( ) ) {
 							current_operator = "NEG";
-						} else if( !operator_stack.empty( ) && 1 == operand_stack.size( ) % 2 == 1 ) {
+						} else if( !operator_stack.empty( ) && (1 == operand_stack.size( ) % 2) ) {
 							current_operator = "NEG";
 						}
 					}
@@ -1099,7 +1112,7 @@ explicit_default:
 
 		void Basic::add_function( boost::string_ref name, std::string description, BasicFunction func ) {
 			if( "SIN" == name ) {
-				std::cout;
+				std::cout << "";
 			}
 			if( is_keyword( name ) ) {
 				throw create_basic_exception( ErrorTypes::FATAL, "Cannot create a function with the same name as a system keyword" );
@@ -1417,7 +1430,7 @@ explicit_default:
 					result = to_integer( lhs ) == to_integer( rhs );
 					break;
 				case ValueType::REAL:
-					result = to_numeric( lhs ) == to_numeric( rhs );
+					result = almost_equal( to_numeric( lhs ), to_numeric( rhs ) );
 					break;
 				case ValueType::STRING:
 					result = 0 == to_string( lhs ).compare( to_string( rhs ) );
@@ -1775,10 +1788,13 @@ explicit_default:
 				} else if( ValueType::INTEGER != get_value_type( value[1] ) ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "The second parameter of LEFT$ must be an integer" );
 				}
-				auto len = to_integer( value[1] );
-				if( 0 > len ) {
-					throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of LEFT$ must be positive" );
-				}
+				auto len = [&]( ) {
+					auto result = to_integer( value[1] );
+					if( 0 > result ) {
+						throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of LEFT$ must be positive" );
+					}
+					return static_cast<size_t>(result);
+				}( );
 				return basic_value_string( to_string( value[0] ).substr( 0, std::move( len ) ) );
 			} );
 
@@ -1793,12 +1809,11 @@ explicit_default:
 				auto str_value = to_string( value[0] );
 				auto start = [&]( ) {
 					auto result = to_integer( value[1] );
-					assert( result >= 0 );
+					if( 0 > result ) {
+						throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of RIGHT$ must be positive" );
+					}
 					return static_cast<size_t>(result);
 				}();
-				if( 0 > start ) {
-					throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of RIGHT$ must be positive" );
-				}
 				start = str_value.size( ) - start;
 				return basic_value_string( str_value.substr( start ) );
 			} );
@@ -1812,15 +1827,22 @@ explicit_default:
 					throw create_basic_exception( ErrorTypes::SYNTAX, "The parameters start and len of MID$ must be an integer" );
 				}
 
-				auto start = to_integer( std::move( value[1] ) );
-				if( 1 > start ) {
-					throw create_basic_exception( ErrorTypes::SYNTAX, "The start parameter of MID$ must be greater than zero" );
-				}
-				--start;	// BASIC arrays start at 1
-				auto len = to_integer( std::move( value[2] ) );
-				if( 1 > len ) {
-					throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of MID$ must be positive" );
-				}
+				auto start = [&]( ) {
+					auto result = to_integer( std::move( value[1] ) );
+					if( 0 > result ) {
+						throw create_basic_exception( ErrorTypes::SYNTAX, "The start parameter of MID$ must be greater than zero" );
+					}
+					--result;	// BASIC arrays start at 1
+					return static_cast<size_t>( result );
+				}( );
+				
+				auto len = [&]( ) {
+					auto result = to_integer( std::move( value[2] ) );
+					if( 0 > result ) {
+						throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of MID$ must be positive" );
+					}
+					return static_cast<size_t>(result);
+				}( );
 				return basic_value_string( to_string( std::move( value[0] ) ).substr( start, len ) );
 			} );
 
@@ -2126,7 +2148,7 @@ explicit_default:
 					auto is_then_goto = [&]( size_t pos ) {
 						std::vector<std::string> const strings_to_find { "THEN", "GOTO" };
 						for( auto & string_to_find : strings_to_find ) {
-							if( pos + string_to_find.size( ) < parse_string[pos] ) {
+							if( pos + string_to_find.size( ) < static_cast<size_t>( parse_string[pos] ) ) {
 								return string_to_find == to_upper( parse_string.substr( pos, string_to_find.size( ) ) );
 							}
 						}
