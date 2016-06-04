@@ -110,9 +110,9 @@ namespace {
 
 	template <typename To, typename From>
 	constexpr bool can_fit( From value ) {
-		return (std::numeric_limits<To>::min( ) <= static_cast<intmax_t>(std::numeric_limits<From>::min( )) ||
+		return (static_cast<intmax_t>(std::numeric_limits<To>::min( )) <= static_cast<intmax_t>(std::numeric_limits<From>::min( )) ||
 				 value >= static_cast<From>(std::numeric_limits<To>::min( ))) &&
-				 (std::numeric_limits<To>::max( ) >= static_cast<uintmax_t>(std::numeric_limits<From>::max( )) || 
+				 (static_cast<uintmax_t>(std::numeric_limits<To>::max( )) >= static_cast<uintmax_t>(std::numeric_limits<From>::max( )) || 
 				   value <= static_cast<From>(std::numeric_limits<To>::max( )));
 	}
 }	// namespace anonymous
