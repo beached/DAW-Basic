@@ -40,11 +40,6 @@ namespace daw {
 		MostlyImmutable & operator=( MostlyImmutable const & ) = default;
 		MostlyImmutable & operator=( MostlyImmutable && ) = default;
 
-		MostlyImmutable& operator=(MostlyImmutable rhs) {
-			m_value = std::move( rhs.m_value );
-			return *this;
-		}
-
 		bool operator==( MostlyImmutable const & rhs) {
 			return rhs.m_value == m_value;
 		}

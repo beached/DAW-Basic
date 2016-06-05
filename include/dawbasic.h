@@ -23,10 +23,9 @@
 
 #include <array>
 #include <boost/any.hpp>
+#include <boost/utility/string_ref.hpp>
 #include <cstdint>
 #include <functional>
-#include <list>
-#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -109,13 +108,12 @@ namespace daw {
 			std::unordered_map<std::string, FunctionType> m_functions;
 			std::vector<ProgramType::iterator> m_program_stack;	// GOSUB/RETURN
 
-			class LoopStackType {
-			public:
+			struct LoopStackType {
 				class LoopType {
 				protected:
 					LoopType( ) = default;
 				public:
-					virtual ~LoopType( );
+					virtual ~LoopType( );					
 					virtual bool can_enter_loop_body( ) = 0;
 				};				
 
@@ -127,7 +125,7 @@ namespace daw {
 					ForLoop( std::string variable_name, BasicValue start_value, BasicValue end_value, BasicValue step_value );
 				public:
 					static std::shared_ptr<LoopType> create_for_loop( ProgramType::iterator program_line );
-					virtual bool can_enter_loop_body( );
+					bool can_enter_loop_body( ) override;
 					~ForLoop( ) = default;
 					ForLoop( ) = delete;
 					ForLoop( ForLoop const & ) = default;
@@ -136,15 +134,21 @@ namespace daw {
 					ForLoop & operator=( ForLoop && ) = default;
 				};	// class ForLoop
 
-
 			private:
 				struct LoopStackValueType {
 					std::shared_ptr<LoopType> loop_control;
 					ProgramType::iterator start_of_loop;
-					LoopStackValueType( ) = delete;
+
 					LoopStackValueType( std::shared_ptr<LoopType> loopControl, ProgramType::iterator program_line );
+					LoopStackValueType( ) = delete;
+					~LoopStackValueType( ) = default;
+					LoopStackValueType( LoopStackValueType const & ) = default;
+					LoopStackValueType( LoopStackValueType && ) = default;
+					LoopStackValueType & operator=( LoopStackValueType const & ) = default;
+					LoopStackValueType & operator=( LoopStackValueType && ) = default;
 					bool can_enter_loop_body( );
-				};
+				};	// struct LoopStackValueType
+
 				std::vector<LoopStackValueType> loop_stack;
 				LoopStackValueType& peek_full( );
 			public:
@@ -157,14 +161,14 @@ namespace daw {
 
 			std::vector<BasicValue> m_data_array;
 
-			std::vector<BasicValue> evaluate_parameters( std::string value );
+			std::vector<BasicValue> evaluate_parameters( boost::string_ref value );
 
 			BasicException create_basic_exception( ErrorTypes error_type, std::string msg );
 			BasicValue exec_function( std::string name, std::vector<BasicValue> arguments );
 			BasicValue& get_variable( std::string name );
 			BasicValue& get_array_variable( std::string name, std::vector<BasicValue> params );
 			BasicValue& get_array_variable( std::string name );
-			std::pair<std::string, std::vector<BasicValue>> split_arrayfunction_from_string( std::string value, bool throw_on_missing_bracket = true );
+			std::pair<std::string, std::vector<BasicValue>> split_arrayfunction_from_string( boost::string_ref value, bool throw_on_missing_bracket = true );
 			ProgramType m_program;
 			ProgramType::iterator find_line( integer line_number );
 			ProgramType::iterator first_line( );
@@ -200,7 +204,7 @@ namespace daw {
 			std::string list_functions( );
 			std::string list_keywords( );
 			std::string list_variables( );
-			BasicValue evaluate( std::string value );
+			BasicValue evaluate( boost::string_ref value );
 			BasicValue& get_variable_constant( std::string name );
 			bool is_constant( std::string name );
 			bool is_function( std::string name );

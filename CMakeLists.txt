@@ -32,6 +32,6 @@ set( SOURCE_FILES
 	main.cpp
 )
 
-add_executable( daw_basic ${SOURCE_FILES} )
+add_executable( daw_basic ${SOURCE_FILES} ${HEADER_FILES} )
 
 target_link_libraries( daw_basic ${CMAKE_DL_LIBS} ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
