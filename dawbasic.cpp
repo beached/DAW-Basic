@@ -1946,6 +1946,7 @@ explicit_default:
 			};
 
 			m_keywords["CLR"] = [&]( boost::string_ref parse_string ) {
+				parse_string = trim( parse_string );
 				if( parse_string.empty( ) ) {
 					clear_variables( );
 				} else {
