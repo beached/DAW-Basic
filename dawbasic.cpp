@@ -108,6 +108,13 @@ namespace {
 		return std::nextafter(a, std::numeric_limits<F>::lowest()) <= b && std::nextafter(a, std::numeric_limits<F>::max()) >= b;
 	}
 
+	template <typename To, typename From>
+	constexpr bool can_fit( From value ) {
+		return (std::numeric_limits<To>::min( ) <= static_cast<intmax_t>(std::numeric_limits<From>::min( )) ||
+				 value >= static_cast<From>(std::numeric_limits<To>::min( ))) &&
+				 (std::numeric_limits<To>::max( ) >= static_cast<uintmax_t>(std::numeric_limits<From>::max( )) || 
+				   value <= static_cast<From>(std::numeric_limits<To>::max( )));
+	}
 }	// namespace anonymous
 
 namespace daw {
@@ -621,7 +628,7 @@ namespace daw {
 				std::vector<size_t> index;
 				for( const auto& value : dimensions ) {
 					auto tmp = to_integer( value );
-					assert( tmp >= 0 );
+					assert( can_fit<size_t>( tmp ) );
 					index.push_back( static_cast<size_t>( tmp ) );
 				}
 				return index;
@@ -1800,7 +1807,7 @@ explicit_default:
 					throw create_basic_exception( ErrorTypes::SYNTAX, "LEN only works on string data" );
 				}
 				auto str_value = to_string( value[0] );
-				assert( str_value.size( ) <= static_cast<size_t>(std::numeric_limits<daw::basic::integer>::max( )) );
+				assert( can_fit<daw::basic::integer>( str_value.size( ) ) );
 				return basic_value_integer( static_cast<daw::basic::integer>(str_value.size( )) );
 			} );
 
@@ -1817,6 +1824,7 @@ explicit_default:
 					if( 0 > result ) {
 						throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of LEFT$ must be positive" );
 					}
+					assert( can_fit<size_t>( result ) );
 					return static_cast<size_t>(result);
 				}( );
 				return basic_value_string( to_string( value[0] ).substr( 0, std::move( len ) ) );
@@ -1836,6 +1844,7 @@ explicit_default:
 					if( 0 > result ) {
 						throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of RIGHT$ must be positive" );
 					}
+					assert( can_fit<size_t>( result ) );
 					return static_cast<size_t>(result);
 				}();
 				start = str_value.size( ) - start;
@@ -1857,6 +1866,7 @@ explicit_default:
 						throw create_basic_exception( ErrorTypes::SYNTAX, "The start parameter of MID$ must be greater than zero" );
 					}
 					--result;	// BASIC arrays start at 1
+					assert( can_fit<size_t>( result ) );
 					return static_cast<size_t>( result );
 				}( );
 				
@@ -1865,6 +1875,7 @@ explicit_default:
 					if( 0 > result ) {
 						throw create_basic_exception( ErrorTypes::SYNTAX, "The len parameter of MID$ must be positive" );
 					}
+					assert( can_fit<size_t>( result ) );
 					return static_cast<size_t>(result);
 				}( );
 				return basic_value_string( to_string( std::move( value[0] ) ).substr( start, len ) );
@@ -1908,6 +1919,7 @@ explicit_default:
 					throw create_basic_exception( ErrorTypes::SYNTAX, "ASC only works on string data" );
 				}
 				auto chr_value = to_string( value[0] )[0];
+				assert( can_fit<integer>( chr_value ) );
 				return basic_value_integer( static_cast<integer>(chr_value) );
 			} );
 
@@ -1921,6 +1933,7 @@ explicit_default:
 				if( 0 > ascii_code || 255 < ascii_code ) {
 					throw create_basic_exception( ErrorTypes::SYNTAX, "Specified ASCII code must be between 0 and 255 inclusive" );
 				}
+				assert( can_fit<char>( ascii_code ) );
 				return basic_value_string( char_to_string( static_cast<char>(ascii_code) ) );
 			} );
 

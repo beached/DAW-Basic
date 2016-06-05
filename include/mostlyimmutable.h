@@ -28,15 +28,15 @@ namespace daw {
 	/// Summary: Defines a template that allows easy reading of a value but one
 	/// must use the accessor method write_value to modify the value.  This should
 	/// simulate const but allow writes and catch some errors.
-	template<typename T>
+	template<typename To>
 	class MostlyImmutable {
-		T m_value;
+		To m_value;
 	public:
 		MostlyImmutable( ) = default;
 		~MostlyImmutable( ) = default;
 		MostlyImmutable( MostlyImmutable const & ) = default;
 		MostlyImmutable( MostlyImmutable && ) = default;
-		MostlyImmutable( T value ): m_value( std::move( value ) ) { }
+		MostlyImmutable( To value ): m_value( std::move( value ) ) { }
 		MostlyImmutable & operator=( MostlyImmutable const & ) = default;
 		MostlyImmutable & operator=( MostlyImmutable && ) = default;
 
@@ -44,29 +44,29 @@ namespace daw {
 			return rhs.m_value == m_value;
 		}
 
-		operator T const &( ) const {
+		operator To const &( ) const {
 			return m_value;
 		}
 
-		T & write( ) {
+		To & write( ) {
 			return m_value;
 		}
 
-		void write( T value ) {
+		void write( To value ) {
 			m_value = std::move( value );
 		}
 
-		T const & read( ) const {
+		To const & read( ) const {
 			return m_value;
 		}
 
-		T copy( ) {
+		To copy( ) {
 			return m_value;
 		}
 	};	// class MostlyImmutable
 
-	template<typename T>
-	std::ostream& operator<<( std::ostream & os, MostlyImmutable<T> const & value ) {
+	template<typename To>
+	std::ostream& operator<<( std::ostream & os, MostlyImmutable<To> const & value ) {
 		os << value.read( );
 		return os;
 	}
