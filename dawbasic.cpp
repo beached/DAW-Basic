@@ -50,27 +50,14 @@ namespace {
 		std::copy( rhs.begin( ), rhs.end( ), out_it );
 		return result;
 	}
-	
-	template<typename Iterator, typename UnaryPredicate>
-	auto find_last_of( Iterator first, Iterator last, UnaryPredicate pred ) {
-		auto prev = last;
-		while( first != last ) {
-			if( !pred( *first ) ) {
-				break;
-			}
-			prev = first;
-			++first;
-		}
-		return prev;
-	}
-
-	
+		
 	template<typename Iterator, typename UnaryPredicate>
 	auto find_first_of( Iterator first, Iterator last, UnaryPredicate pred ) {
 		while( first != last ) {
 			if( pred( *first ) ) {
 				break;
 			}
+			++first;
 		}
 		return first;
 	}
@@ -82,24 +69,30 @@ namespace {
 		auto first = find_first_of( value.cbegin( ), value.cend( ), []( auto c ) {
 			return !std::isspace( c );
 		} );
-		return value.substr( std::distance( value.cbegin( ), first ) );
+		auto pos = std::distance( value.cbegin( ), first );
+		auto result = value.substr( pos );
+		return result;
 	}
 
 	boost::string_ref trim_right( boost::string_ref value ) {
 		if( value.empty( ) ) {
 			return value;
 		}
-		auto last = find_last_of( value.crbegin( ), value.crend( ), []( auto c ) {
-			return std::isspace( c ); 
+		auto last = find_first_of( value.crbegin( ), value.crend( ), []( auto c ) {
+			return !std::isspace( c );
 		} );
-		return value.substr( 0, value.size( ) - std::distance( value.crbegin( ), last ) );
+		auto dist = std::distance( value.crbegin( ), last );
+		auto len = value.size( ) - dist;
+		auto result = value.substr( 0, len );
+		return result;
 	}
 
 	boost::string_ref trim( boost::string_ref value ) {
 		if( value.empty( ) ) {
 			return value;
 		}
-		return trim_right( trim_left( value ) );
+		auto result = trim_right( trim_left( value ) );
+		return result;
 	}
 
 	std::string to_upper( boost::string_ref str ) {
