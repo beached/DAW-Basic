@@ -81,7 +81,7 @@ namespace {
 
 	template<typename F>
 	bool almost_equal( F a, F b ) {
-  		return std::nextafter(a, std::numeric_limits<F>::lowest()) <= b && std::nextafter(a, std::numeric_limits<F>::max()) >= b;
+		return std::nextafter(a, std::numeric_limits<F>::lowest()) <= b && std::nextafter(a, std::numeric_limits<F>::max()) >= b;
 	}
 
 }	// namespace anonymous
