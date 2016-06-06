@@ -108,6 +108,8 @@ namespace {
 		return std::nextafter(a, std::numeric_limits<F>::lowest()) <= b && std::nextafter(a, std::numeric_limits<F>::max()) >= b;
 	}
 
+	// See http://stackoverflow.com/a/17251989/202861
+	// Modified to remove signed/unsigned warnings when comparing
 	template <typename To, typename From>
 	constexpr bool can_fit( From value ) {
 		return (static_cast<intmax_t>(std::numeric_limits<To>::min( )) <= static_cast<intmax_t>(std::numeric_limits<From>::min( )) ||
