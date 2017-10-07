@@ -22,6 +22,9 @@ ENDIF()
 include_directories( SYSTEM ${Boost_INCLUDE_DIRS} )
 
 set( HEADER_FOLDER "include" )
+set( SOURCE_FOLDER "src" )
+set( TEST_FOLDER "tests" )
+
 include_directories( ${HEADER_FOLDER} )
 
 set( HEADER_FILES
@@ -31,10 +34,11 @@ set( HEADER_FILES
 )
 
 set( SOURCE_FILES
-	dawbasic.cpp
-	main.cpp
+	${SOURCE_FOLDER}/dawbasic.cpp
+	${SOURCE_FOLDER}/main.cpp
 )
 
 add_executable( daw_basic ${SOURCE_FILES} ${HEADER_FILES} )
-add_dependencies( daw_basic asteroid_prj )
+#add_dependencies( daw_basic asteroid_prj )
 target_link_libraries( daw_basic ${CMAKE_DL_LIBS} ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
+
